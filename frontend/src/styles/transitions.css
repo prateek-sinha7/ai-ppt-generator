@@ -1,0 +1,52 @@
+/* Slide transition animations - backend-driven via transition field */
+
+/* Base slide container */
+.slide-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Fade transition */
+.slide-transition-fade {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Slide transition */
+.slide-transition-slide {
+  animation: slideIn 0.5s ease-in-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* No transition */
+.slide-transition-none {
+  /* No animation */
+}
+
+/* Highlight box styling */
+.highlight-box {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border-left: 4px solid;
+  margin: 1rem 0;
+  font-weight: 500;
+}
