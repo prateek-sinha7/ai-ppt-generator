@@ -1,20 +1,29 @@
 import React from 'react'
-import { TableSlideProps } from '../../types/slideProps'
-import { getThemeColors } from '../../utils/themeUtils'
-import { Icon } from '../common/Icon'
+import { SlideColors } from '../../utils/themeUtils'
+import { TableRow } from '../../types'
 import '../../styles/transitions.css'
+
+interface TableSlideProps {
+  title: string
+  table_headers: string[]
+  table_rows: TableRow[]
+  colors: SlideColors
+  visual_hint: 'split-table-left'
+  icon_name?: string
+  highlight_text?: string
+  transition?: string
+  className?: string
+}
 
 export const TableSlide: React.FC<TableSlideProps> = ({
   title,
   table_headers,
   table_rows,
-  theme,
-  icon_name,
+  colors,
   highlight_text,
   transition = 'fade',
   className = '',
 }) => {
-  const colors = getThemeColors(theme)
   const transitionClass = `slide-transition-${transition}`
 
   return (
@@ -22,91 +31,69 @@ export const TableSlide: React.FC<TableSlideProps> = ({
       className={`slide-container ${transitionClass} ${className} relative flex flex-col overflow-hidden`}
       style={{ backgroundColor: colors.bg }}
     >
-      {/* Top accent */}
-      <div className="h-1.5 w-full flex-shrink-0" style={{ backgroundColor: colors.primary }} />
-
-      {/* Header */}
+      {/* Dark header bar */}
       <div
-        className="flex items-center gap-4 px-10 py-4 flex-shrink-0"
-        style={{ borderBottom: `1px solid ${colors.border}` }}
+        className="flex-shrink-0 flex items-center px-4"
+        style={{ backgroundColor: colors.bgDark, height: '13.3%' }}
       >
-        {icon_name && (
-          <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${colors.primary}15` }}>
-            <Icon name={icon_name} size={20} color={colors.primary} />
-          </div>
-        )}
-        <h2 className="font-bold flex-1 leading-tight" style={{ color: colors.text, fontSize: '1.5rem' }}>
+        <h2 className="font-bold tracking-wide truncate" style={{ color: '#FFFFFF', fontSize: '1.15rem', letterSpacing: '0.03em' }}>
           {title}
         </h2>
-        <div className="flex-shrink-0 text-xs font-medium px-3 py-1 rounded-full" style={{ backgroundColor: `${colors.primary}15`, color: colors.primary }}>
-          DATA TABLE
-        </div>
       </div>
+      <div style={{ height: '1%', backgroundColor: colors.accent, flexShrink: 0 }} />
 
-      {/* Body */}
-      <div className="flex-1 flex gap-0 overflow-hidden">
-        {/* Table */}
-        <div className="flex-1 overflow-auto px-10 py-6">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr style={{ backgroundColor: colors.primary }}>
-                {table_headers.map((header, index) => (
-                  <th
-                    key={index}
-                    className="text-left px-4 py-3 text-sm font-semibold"
-                    style={{ color: '#fff', borderBottom: `2px solid ${colors.primary}` }}
+      {/* Table */}
+      <div className="flex-1 overflow-auto px-4 py-2">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr style={{ backgroundColor: colors.primary }}>
+              {table_headers.map((header, index) => (
+                <th
+                  key={index}
+                  className="text-left px-3 py-2 font-semibold"
+                  style={{ color: '#fff' }}
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table_rows.map((row, rowIndex) => (
+              <tr
+                key={rowIndex}
+                style={{
+                  backgroundColor: rowIndex % 2 === 0 ? '#F8F9FA' : '#FFFFFF',
+                  borderBottom: '0.5px solid #E2E8F0',
+                }}
+              >
+                {table_headers.map((header, colIndex) => (
+                  <td
+                    key={colIndex}
+                    className="px-3 py-1.5"
+                    style={{
+                      color: colIndex === 0 ? colors.text : colors.muted,
+                      fontWeight: colIndex === 0 ? 600 : 400,
+                    }}
                   >
-                    {header}
-                  </th>
+                    {row[header]}
+                  </td>
                 ))}
               </tr>
-            </thead>
-            <tbody>
-              {table_rows.map((row, rowIndex) => (
-                <tr
-                  key={rowIndex}
-                  className="transition-colors"
-                  style={{
-                    backgroundColor: rowIndex % 2 === 0 ? colors.bg : colors.surface,
-                    borderBottom: `1px solid ${colors.border}`,
-                  }}
-                >
-                  {table_headers.map((header, colIndex) => (
-                    <td
-                      key={colIndex}
-                      className="px-4 py-3 text-sm"
-                      style={{
-                        color: colIndex === 0 ? colors.text : colors.muted,
-                        fontWeight: colIndex === 0 ? 600 : 400,
-                      }}
-                    >
-                      {row[header]}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Right insight panel */}
-        {highlight_text && (
-          <div
-            className="w-44 flex-shrink-0 flex flex-col justify-center px-5 py-6"
-            style={{ backgroundColor: colors.surface, borderLeft: `1px solid ${colors.border}` }}
-          >
-            <div className="w-8 h-1 rounded-full mb-4" style={{ backgroundColor: colors.primary }} />
-            <p className="text-xs font-semibold leading-relaxed" style={{ color: colors.primary }}>
-              {highlight_text}
-            </p>
-            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${colors.border}` }}>
-              <p className="text-xs" style={{ color: colors.muted }}>
-                {table_rows.length} records
-              </p>
-            </div>
-          </div>
-        )}
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* Highlight callout */}
+      {highlight_text && (
+        <div
+          className="flex-shrink-0 flex items-center justify-center text-center px-4"
+          style={{ backgroundColor: colors.accent, height: '12%', boxShadow: '0 -2px 8px rgba(0,0,0,0.1)' }}
+        >
+          <span className="font-bold text-xs" style={{ color: '#FFFFFF' }}>{highlight_text}</span>
+        </div>
+      )}
     </div>
   )
 }

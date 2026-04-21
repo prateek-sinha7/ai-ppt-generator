@@ -1,88 +1,118 @@
 import React from 'react'
-import { TitleSlideProps } from '../../types/slideProps'
-import { getThemeColors } from '../../utils/themeUtils'
+import { SlideColors } from '../../utils/themeUtils'
 import { Icon } from '../common/Icon'
 import '../../styles/transitions.css'
+
+interface TitleSlideProps {
+  title: string
+  subtitle?: string
+  bullets?: string[]
+  colors: SlideColors
+  visual_hint: 'centered'
+  icon_name?: string
+  transition?: string
+  className?: string
+}
 
 export const TitleSlide: React.FC<TitleSlideProps> = ({
   title,
   subtitle,
-  theme,
+  bullets = [],
+  colors,
   icon_name,
   transition = 'fade',
   className = '',
 }) => {
-  const colors = getThemeColors(theme)
   const transitionClass = `slide-transition-${transition}`
+  const kpis = bullets.slice(0, 4)
 
   return (
     <div
       className={`slide-container ${transitionClass} ${className} relative overflow-hidden flex flex-col`}
-      style={{ backgroundColor: colors.bg }}
+      style={{ backgroundColor: colors.bgDark }}
     >
-      {/* Top accent bar */}
-      <div className="h-2 w-full flex-shrink-0" style={{ backgroundColor: colors.primary }} />
-
-      {/* Left accent stripe */}
+      {/* Left accent stripe — matches builder.js */}
       <div
-        className="absolute left-0 top-2 bottom-0 w-1.5"
-        style={{ backgroundColor: colors.accent }}
+        className="absolute left-0 top-0 bottom-0"
+        style={{ width: '1%', backgroundColor: colors.accent }}
       />
 
-      {/* Background decorative circle */}
+      {/* Decorative circles top-right — matches builder.js */}
       <div
-        className="absolute -right-24 -bottom-24 w-96 h-96 rounded-full opacity-5"
-        style={{ backgroundColor: colors.primary }}
+        className="absolute rounded-full"
+        style={{
+          right: '-15%', top: '-20%',
+          width: '45%', height: '80%',
+          backgroundColor: colors.accent,
+          opacity: 0.08,
+          border: `1px solid ${colors.accent}`,
+        }}
       />
       <div
-        className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full opacity-5"
-        style={{ backgroundColor: colors.secondary }}
+        className="absolute rounded-full"
+        style={{
+          right: '-8%', top: '0%',
+          width: '32%', height: '55%',
+          backgroundColor: colors.accent,
+          opacity: 0.05,
+          border: `1px solid ${colors.accent}`,
+        }}
       />
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center px-20 py-12">
-        <div className="max-w-3xl w-full">
-          {icon_name && (
-            <div className="mb-6">
-              <div
-                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl"
-                style={{ backgroundColor: `${colors.primary}15` }}
-              >
-                <Icon name={icon_name} size={36} color={colors.primary} />
-              </div>
-            </div>
-          )}
-
-          <h1
-            className="font-bold leading-tight mb-6"
-            style={{ color: colors.text, fontSize: '2.8rem', lineHeight: '1.15' }}
-          >
-            {title}
-          </h1>
-
-          {subtitle && (
-            <>
-              <div className="w-16 h-1 rounded-full mb-5" style={{ backgroundColor: colors.primary }} />
-              <p
-                className="text-xl leading-relaxed"
-                style={{ color: colors.muted }}
-              >
-                {subtitle}
-              </p>
-            </>
-          )}
+      {/* Icon top-right */}
+      {icon_name && (
+        <div className="absolute" style={{ right: '8%', top: '8%' }}>
+          <Icon name={icon_name} size={56} color={colors.accent} />
         </div>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col justify-center pl-[6%] pr-[30%] pt-4">
+        {/* Title */}
+        <h1
+          className="font-bold leading-tight tracking-wide"
+          style={{ color: '#FFFFFF', fontSize: '2.2rem', letterSpacing: '0.05em' }}
+        >
+          {title}
+        </h1>
+
+        {/* Subtitle */}
+        {subtitle && (
+          <p
+            className="mt-3 italic"
+            style={{ color: colors.accent, fontSize: '1.1rem' }}
+          >
+            {subtitle}
+          </p>
+        )}
+
+        {/* Divider */}
+        <div
+          className="mt-4"
+          style={{ width: '35%', height: '3px', backgroundColor: colors.accent }}
+        />
       </div>
 
-      {/* Bottom bar */}
-      <div
-        className="h-12 flex-shrink-0 flex items-center px-20"
-        style={{ backgroundColor: colors.surface }}
-      >
-        <span className="text-xs font-medium tracking-widest uppercase" style={{ color: colors.muted }}>
-          Confidential
-        </span>
-      </div>
+      {/* KPI badge row — matches builder.js */}
+      {kpis.length > 0 && (
+        <div className="flex gap-2 px-[4%] pb-[4%]">
+          {kpis.map((kpi, i) => (
+            <div
+              key={i}
+              className="flex-1 flex items-center justify-center text-center rounded"
+              style={{
+                backgroundColor: '#112240',
+                border: `1px solid ${colors.accent}`,
+                padding: '8px 6px',
+                minHeight: '60px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              }}
+            >
+              <span style={{ color: '#FFFFFF', fontSize: '0.7rem', lineHeight: 1.3 }}>{kpi}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

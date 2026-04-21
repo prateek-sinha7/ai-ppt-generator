@@ -468,11 +468,11 @@ Return your classification as JSON."""
         Select presentation theme based on industry and audience
         
         Returns:
-            Theme name: "mckinsey", "deloitte", or "dark_modern"
+            Theme name: "deloitte" or "dark_modern"
         """
-        # Executive audiences get McKinsey theme
+        # Executive audiences get Deloitte theme
         if audience == "executives":
-            return "mckinsey"
+            return "deloitte"
         
         # Technical audiences get Dark Modern theme
         if audience == "technical":

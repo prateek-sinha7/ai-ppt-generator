@@ -486,10 +486,11 @@ def export_pptx_task(
             )
 
         slides_data = presentation.slides or []
-        theme = presentation.selected_theme or "mckinsey"
+        theme = presentation.selected_theme or "deloitte"
+        design_spec = presentation.design_spec or {}
 
-        # Build PPTX in memory
-        pptx_bytes = _build_pptx(slides_data, theme)
+        # Build PPTX via Node.js pptx-service (Claude-quality rendering)
+        pptx_bytes = _build_pptx(slides_data, theme, design_spec)
 
         # Upload to S3/MinIO and get signed URL
         object_key = f"exports/{presentation_id}/{job_id}.pptx"
@@ -512,28 +513,94 @@ def export_pptx_task(
         raise self.retry(exc=exc) from exc
 
 
-def _build_pptx(slides_data: Any, theme: str) -> bytes:
+def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, Any]] = None) -> bytes:
     """
-    Build a PPTX file from slide data using python-pptx.
-    
-    Uses the comprehensive PPTXBuilder service (Task 24) with full support for:
-    - All slide types (title, content, chart, table, comparison)
-    - Theme application (McKinsey, Deloitte, Dark Modern)
-    - Chart rendering (bar, line, pie)
-    - Table rendering with formatting
-    - Transition mapping (fade, slide, none)
-    
+    Build a PPTX file by calling the pptx-service Node.js microservice.
+
+    The pptx-service implements the full Claude-style design system using pptxgenjs:
+    - Topic-specific color palettes from design_spec (DesignAgent output)
+    - Visual motif carried across all slides
+    - Varied layouts with icons, charts, callouts
+    - Modern chart styling with dark themes
+    - Numbered bullet cards, KPI badges, comparison columns
+    - No fallback - always uses pptx-service for consistent Claude-style output
+
     Args:
         slides_data: List of slide dictionaries from Slide_JSON
         theme: Theme name (mckinsey, deloitte, dark_modern)
-        
+        design_spec: DesignAgent output dict with palette, fonts, motif
+
     Returns:
         PPTX file as bytes
+
+    Raises:
+        Exception: If pptx-service is unavailable or fails
     """
-    from app.services.pptx_export import build_pptx
+    import httpx
+    from app.core.config import settings
+
+    # slides_data may be a list directly or a dict with a "slides" key
+    if isinstance(slides_data, dict):
+        slides_list = slides_data.get("slides", [])
+    elif isinstance(slides_data, list):
+        slides_list = slides_data
+    else:
+        slides_list = []
+
+    pptx_service_url = getattr(settings, "PPTX_SERVICE_URL", "http://pptx-service:3001")
     
-    slides_list = slides_data if isinstance(slides_data, list) else []
-    return build_pptx(slides_list, theme)
+    logger.info(
+        "attempting_pptx_service_build",
+        url=pptx_service_url,
+        slide_count=len(slides_list),
+        theme=theme,
+        has_design_spec=bool(design_spec),
+    )
+
+    try:
+        response = httpx.post(
+            f"{pptx_service_url}/build",
+            json={
+                "slides": slides_list,
+                "design_spec": design_spec or {},
+                "theme": theme,
+            },
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        logger.info(
+            "pptx_service_build_success",
+            slide_count=len(slides_list),
+            size_bytes=len(response.content),
+            theme=theme,
+        )
+        return response.content
+
+    except httpx.TimeoutException as exc:
+        logger.error(
+            "pptx_service_timeout",
+            error=str(exc),
+            slide_count=len(slides_list),
+            timeout=60.0,
+        )
+        raise Exception(f"PPTX service timeout after 60 seconds: {str(exc)}")
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "pptx_service_http_error",
+            error=str(exc),
+            status_code=exc.response.status_code,
+            response_text=exc.response.text[:500],
+            slide_count=len(slides_list),
+        )
+        raise Exception(f"PPTX service HTTP error {exc.response.status_code}: {exc.response.text[:200]}")
+    except Exception as exc:
+        logger.error(
+            "pptx_service_error",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            slide_count=len(slides_list),
+        )
+        raise Exception(f"PPTX service error ({type(exc).__name__}): {str(exc)}")
 
 
 async def _upload_to_s3(object_key: str, data: bytes) -> str:

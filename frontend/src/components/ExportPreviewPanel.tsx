@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, Download, Loader2, FileText, AlertCircle, RefreshCw } from 'lucide-react'
-import { triggerPptxExport, getPptxExportStatus } from '../services/api'
+import { getPptxExportStatus } from '../services/api'
 
 type ExportStatus = 'idle' | 'triggering' | 'processing' | 'ready' | 'error'
 
@@ -51,11 +51,11 @@ export default function ExportPreviewPanel({ presentationId, onClose }: ExportPr
     setDownloadUrl(null)
     setPreviewUrl(null)
     try {
-      await triggerPptxExport(presentationId)
-      setStatus('processing')
-      setPollCount(0)
+      // Direct download URL — no polling needed
+      setDownloadUrl(`/api/v1/presentations/${presentationId}/export/pptx/download`)
+      setStatus('ready')
     } catch {
-      setErrorMessage('Failed to start export. Please try again.')
+      setErrorMessage('Failed to prepare export. Please try again.')
       setStatus('error')
     }
   }
@@ -153,14 +153,38 @@ export default function ExportPreviewPanel({ presentationId, onClose }: ExportPr
 
               {/* Download button */}
               {downloadUrl && (
-                <a
-                  href={downloadUrl}
-                  download
+                <button
+                  onClick={async () => {
+                    try {
+                      const { apiClient } = await import('../services/api')
+                      const response = await apiClient.post(
+                        `/presentations/${presentationId}/export/pptx`,
+                        {},
+                        { responseType: 'blob' }
+                      )
+                      const disposition = response.headers['content-disposition'] || ''
+                      const match = disposition.match(/filename="?([^";\n]+)"?/)
+                      const filename = match ? match[1] : 'presentation.pptx'
+                      const url = URL.createObjectURL(new Blob([response.data], {
+                        type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                      }))
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = filename
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      URL.revokeObjectURL(url)
+                    } catch {
+                      setErrorMessage('Download failed. Please try again.')
+                      setStatus('error')
+                    }
+                  }}
                   className="flex items-center justify-center gap-2 w-full px-5 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   Download .pptx
-                </a>
+                </button>
               )}
 
               <p className="text-xs text-gray-400 text-center">

@@ -59,6 +59,7 @@ export interface PresentationSlideJSON {
   theme: Theme
   detected_industry: string
   detected_audience: string
+  design_spec?: DesignSpec
   slides: SlideData[]
   metadata: {
     generated_at: string
@@ -78,5 +79,21 @@ export interface GenerationStatus {
     audience: string
     template_id: string
   }
+  design_spec?: DesignSpec
   error?: string
+}
+
+export interface DesignSpec {
+  palette_name: string
+  primary_color: string
+  secondary_color: string
+  accent_color: string
+  text_color: string
+  text_light_color: string
+  background_color: string
+  background_dark_color: string
+  chart_colors: string[]
+  font_header: string
+  font_body: string
+  motif: string
 }

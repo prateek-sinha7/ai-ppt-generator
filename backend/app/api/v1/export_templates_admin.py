@@ -211,27 +211,27 @@ async def _get_presentation_or_404(
 
 
 # ---------------------------------------------------------------------------
-# 19.1  POST /api/v1/presentations/{id}/export/pptx
+# 19.1  POST /api/v1/presentations/{id}/export/pptx  — direct streaming download
 # ---------------------------------------------------------------------------
 
 
 @router.post(
     "/presentations/{presentation_id}/export/pptx",
-    response_model=ExportJobResponse,
-    status_code=status.HTTP_202_ACCEPTED,
     tags=["export"],
+    response_class=Response,
 )
 async def trigger_pptx_export(
     presentation_id: str,
     current_user: User = Depends(require_min_role("member")),
     db: AsyncSession = Depends(get_db),
-) -> ExportJobResponse:
+) -> Response:
     """
-    Trigger a background PPTX export job for a completed presentation.
+    Build and stream a PPTX file directly to the browser.
 
-    Returns a job_id immediately. Poll /export/pptx/status for the download URL.
+    Builds the PPTX synchronously and returns it as a file download.
+    No MinIO, no polling, no signed URLs — just a direct file response.
     """
-    from app.worker.tasks import export_pptx_task
+    from app.worker.tasks import _build_pptx
 
     presentation = await _get_presentation_or_404(
         presentation_id, current_user.tenant_id, db
@@ -243,32 +243,149 @@ async def trigger_pptx_export(
             detail=f"Presentation must be completed before exporting. Current status: {presentation.status.value}",
         )
 
-    idempotency_key = f"export:{presentation_id}:{int(time.time() // 3600)}"  # 1-hour dedup window
+    slides_data = presentation.slides or []
+    theme = presentation.selected_theme or "deloitte"
+    design_spec = presentation.design_spec or {}
 
-    task_result = export_pptx_task.apply_async(
-        kwargs={
-            "presentation_id": presentation_id,
-            "idempotency_key": idempotency_key,
-        }
+    # Build PPTX bytes — run in thread pool to avoid blocking the async event loop
+    import asyncio
+    loop = asyncio.get_running_loop()
+    pptx_bytes = await loop.run_in_executor(
+        None, _build_pptx, slides_data, theme, design_spec
     )
 
-    # Cache the job_id so status endpoint can look it up
-    await redis_cache.set(
-        f"export_job:{presentation_id}",
-        {"job_id": task_result.id, "status": "queued", "started_at": datetime.now(timezone.utc).isoformat()},
-        ttl_seconds=7200,  # 2 hours
-    )
+    safe_topic = (presentation.topic or "presentation")[:40]
+    safe_topic = "".join(c if c.isalnum() or c in " -_" else "_" for c in safe_topic).strip()
+    filename = f"{safe_topic}.pptx"
 
-    return ExportJobResponse(
-        job_id=task_result.id,
-        presentation_id=presentation_id,
-        status="queued",
-        message="PPTX export queued. Poll /export/pptx/status for the download URL.",
+    return Response(
+        content=pptx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(pptx_bytes)),
+        },
     )
 
 
 # ---------------------------------------------------------------------------
-# 19.2  GET /api/v1/presentations/{id}/export/pptx/status
+# 19.1b  POST /api/v1/presentations/{id}/export/pptx/preview-images
+#         Build PPTX → convert to slide images → return base64 JPGs
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/presentations/{presentation_id}/export/pptx/preview-images",
+    tags=["export"],
+)
+async def get_pptx_preview_images(
+    presentation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Build the PPTX and convert each slide to a JPEG image.
+    Returns base64-encoded images — pixel-perfect match with the downloaded file.
+    """
+    import httpx
+    from app.core.config import settings
+    import structlog
+
+    logger = structlog.get_logger(__name__)
+
+    presentation = await _get_presentation_or_404(
+        presentation_id, current_user.tenant_id, db
+    )
+
+    if presentation.status != PresentationStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Presentation must be completed before generating preview.",
+        )
+
+    slides_data = presentation.slides or []
+    if isinstance(slides_data, dict):
+        slides_data = slides_data.get("slides", [])
+    theme = presentation.selected_theme or "deloitte"
+    design_spec = presentation.design_spec or {}
+
+    logger.info(
+        "preview_images_request",
+        presentation_id=presentation_id,
+        slide_count=len(slides_data),
+        theme=theme,
+        has_design_spec=bool(design_spec),
+    )
+
+    # Extract slide titles and types for the UI
+    slide_meta = [
+        {
+            "title": s.get("title", f"Slide {i+1}"),
+            "type": s.get("type", "content"),
+            "slide_number": i + 1,
+        }
+        for i, s in enumerate(slides_data)
+    ]
+
+    pptx_service_url = getattr(settings, "PPTX_SERVICE_URL", "http://pptx-service:3001")
+    logger.info("calling_pptx_service_preview", url=f"{pptx_service_url}/preview")
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{pptx_service_url}/preview",
+                json={"slides": slides_data, "design_spec": design_spec, "theme": theme},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info(
+                "preview_images_success",
+                image_count=data.get("count", 0),
+                presentation_id=presentation_id,
+            )
+            return {
+                "images": data.get("images", []),
+                "count": data.get("count", 0),
+                "slide_meta": slide_meta,
+            }
+    except httpx.TimeoutException as exc:
+        logger.error(
+            "preview_timeout",
+            error=str(exc),
+            presentation_id=presentation_id,
+            timeout=120.0,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Preview generation timed out after 120 seconds: {str(exc)}",
+        )
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "preview_http_error",
+            error=str(exc),
+            status_code=exc.response.status_code,
+            response_text=exc.response.text[:500],
+            presentation_id=presentation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Preview generation failed with HTTP {exc.response.status_code}: {exc.response.text[:200]}",
+        )
+    except Exception as exc:
+        logger.error(
+            "preview_error",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            presentation_id=presentation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Preview generation failed: {str(exc)}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 19.2  GET /api/v1/presentations/{id}/export/pptx/status  — kept for compatibility
 # ---------------------------------------------------------------------------
 
 
@@ -283,69 +400,76 @@ async def get_pptx_export_status(
     db: AsyncSession = Depends(get_db),
 ) -> ExportStatusResponse:
     """
-    Get the status of a PPTX export job and the signed download URL when ready.
+    Compatibility endpoint — returns a direct download URL for the presentation.
 
-    The signed URL is valid for 1 hour after generation.
+    Since export is now synchronous, this always returns a direct download URL
+    pointing to the POST endpoint. No polling needed.
     """
-    from celery.result import AsyncResult
-    from app.worker.celery_app import celery_app as _celery
-
     await _get_presentation_or_404(presentation_id, current_user.tenant_id, db)
 
-    # Look up the cached job info
-    cached = await redis_cache.get(f"export_job:{presentation_id}")
-    if not cached:
-        raise HTTPException(
-            status_code=404,
-            detail="No export job found for this presentation. Trigger one via POST /export/pptx.",
-        )
-
-    job_id = cached.get("job_id")
-    task_result = AsyncResult(job_id, app=_celery)
-
-    if task_result.state == "PENDING":
-        return ExportStatusResponse(
-            job_id=job_id,
-            presentation_id=presentation_id,
-            status="queued",
-        )
-
-    if task_result.state == "STARTED" or task_result.state == "RETRY":
-        return ExportStatusResponse(
-            job_id=job_id,
-            presentation_id=presentation_id,
-            status="processing",
-        )
-
-    if task_result.state == "SUCCESS":
-        result = task_result.result or {}
-        download_url = result.get("download_url")
-        # Signed URL expires in 1 hour from generation
-        expires_at = None
-        if download_url:
-            from datetime import timedelta
-            expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-
-        return ExportStatusResponse(
-            job_id=job_id,
-            presentation_id=presentation_id,
-            status="completed",
-            download_url=download_url,
-            expires_at=expires_at,
-        )
-
-    if task_result.state == "FAILURE":
-        return ExportStatusResponse(
-            job_id=job_id,
-            presentation_id=presentation_id,
-            status="failed",
-            error=str(task_result.result) if task_result.result else "Export failed",
-        )
+    # Return a direct download URL — the POST endpoint streams the file
+    download_url = f"/api/v1/presentations/{presentation_id}/export/pptx/download"
 
     return ExportStatusResponse(
-        job_id=job_id,
+        job_id="direct",
         presentation_id=presentation_id,
-        status=task_result.state.lower(),
+        status="completed",
+        download_url=download_url,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 19.2b  GET /api/v1/presentations/{id}/export/pptx/download  — direct GET download
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/presentations/{presentation_id}/export/pptx/download",
+    tags=["export"],
+    response_class=Response,
+)
+async def download_pptx(
+    presentation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """
+    Direct GET endpoint to download the PPTX file.
+    Used by the status endpoint's download_url field.
+    """
+    from app.worker.tasks import _build_pptx
+
+    presentation = await _get_presentation_or_404(
+        presentation_id, current_user.tenant_id, db
+    )
+
+    if presentation.status != PresentationStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Presentation must be completed before downloading.",
+        )
+
+    slides_data = presentation.slides or []
+    theme = presentation.selected_theme or "deloitte"
+    design_spec = presentation.design_spec or {}
+
+    import asyncio
+    loop = asyncio.get_running_loop()
+    pptx_bytes = await loop.run_in_executor(
+        None, _build_pptx, slides_data, theme, design_spec
+    )
+
+    safe_topic = (presentation.topic or "presentation")[:40]
+    safe_topic = "".join(c if c.isalnum() or c in " -_" else "_" for c in safe_topic).strip()
+    filename = f"{safe_topic}.pptx"
+
+    return Response(
+        content=pptx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(pptx_bytes)),
+        },
     )
 
 
@@ -417,7 +541,7 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
 
-    html_content = _build_preview_html(slides_data, presentation.selected_theme or "mckinsey")
+    html_content = _build_preview_html(slides_data, presentation.selected_theme or "deloitte")
 
     pdf_bytes: Optional[bytes] = None
 

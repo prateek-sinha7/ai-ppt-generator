@@ -1,109 +1,120 @@
 import React from 'react'
-import { ContentSlideProps } from '../../types/slideProps'
-import { getThemeColors } from '../../utils/themeUtils'
+import { SlideColors } from '../../utils/themeUtils'
 import { Icon } from '../common/Icon'
 import '../../styles/transitions.css'
+
+interface ContentSlideProps {
+  title: string
+  bullets: string[]
+  colors: SlideColors
+  visual_hint: 'bullet-left'
+  icon_name?: string
+  highlight_text?: string
+  transition?: string
+  className?: string
+  isDark?: boolean
+}
 
 export const ContentSlide: React.FC<ContentSlideProps> = ({
   title,
   bullets,
-  theme,
+  colors,
   icon_name,
   highlight_text,
   transition = 'fade',
   className = '',
+  isDark = false,
 }) => {
-  const colors = getThemeColors(theme)
   const transitionClass = `slide-transition-${transition}`
+  const textColor = isDark ? '#FFFFFF' : colors.text
 
   return (
     <div
       className={`slide-container ${transitionClass} ${className} relative flex flex-col overflow-hidden`}
-      style={{ backgroundColor: colors.bg }}
+      style={{ backgroundColor: isDark ? colors.bgDark : colors.bg }}
     >
-      {/* Top accent bar */}
-      <div className="h-1.5 w-full flex-shrink-0" style={{ backgroundColor: colors.primary }} />
-
-      {/* Header */}
+      {/* Dark header bar — matches builder.js addHeader() */}
       <div
-        className="flex items-center gap-4 px-12 py-5 flex-shrink-0"
-        style={{ borderBottom: `1px solid ${colors.border}` }}
+        className="flex-shrink-0 flex items-center px-4"
+        style={{ backgroundColor: colors.bgDark, height: '13.3%', position: 'relative' }}
       >
-        {icon_name && (
-          <div
-            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ backgroundColor: `${colors.primary}15` }}
-          >
-            <Icon name={icon_name} size={22} color={colors.primary} />
-          </div>
-        )}
         <h2
-          className="font-bold flex-1 leading-tight"
-          style={{ color: colors.text, fontSize: '1.6rem' }}
+          className="font-bold tracking-wide truncate"
+          style={{ color: '#FFFFFF', fontSize: '1.15rem', letterSpacing: '0.03em' }}
         >
           {title}
         </h2>
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 flex gap-8 px-12 py-8 overflow-hidden">
-        {/* Bullets */}
-        <div className="flex-1 flex flex-col justify-center space-y-4">
-          {bullets.map((bullet, index) => (
-            <div
-              key={index}
-              className="flex items-start gap-4 p-3 rounded-xl transition-colors"
-              style={{ backgroundColor: index % 2 === 0 ? `${colors.primary}08` : 'transparent' }}
-            >
-              <div
-                className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold mt-0.5"
-                style={{ backgroundColor: colors.primary, color: '#fff' }}
-              >
-                {index + 1}
-              </div>
-              <span
-                className="text-base leading-relaxed font-medium"
-                style={{ color: colors.text }}
-              >
-                {bullet}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Highlight box */}
-        {highlight_text && (
+        {/* Icon circle top-right */}
+        {icon_name && (
           <div
-            className="w-56 flex-shrink-0 rounded-2xl p-5 flex flex-col justify-center"
+            className="absolute flex items-center justify-center rounded-full"
             style={{
-              backgroundColor: `${colors.primary}10`,
-              border: `2px solid ${colors.primary}30`,
+              right: '3%', top: '50%', transform: 'translateY(-50%)',
+              width: '2.2rem', height: '2.2rem',
+              backgroundColor: `${colors.primary}CC`,
+              border: `1px solid ${colors.accent}`,
             }}
           >
-            <div
-              className="w-8 h-1 rounded-full mb-3"
-              style={{ backgroundColor: colors.primary }}
-            />
-            <p
-              className="text-sm font-semibold leading-relaxed"
-              style={{ color: colors.primary }}
-            >
-              {highlight_text}
-            </p>
+            <Icon name={icon_name} size={16} color={colors.accent} />
           </div>
         )}
       </div>
+      {/* Accent line under header */}
+      <div style={{ height: '1%', backgroundColor: colors.accent, flexShrink: 0 }} />
 
-      {/* Bottom bar */}
-      <div
-        className="h-8 flex-shrink-0 flex items-center px-12"
-        style={{ backgroundColor: colors.surface, borderTop: `1px solid ${colors.border}` }}
-      >
-        <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: colors.primary }} />
-        <span className="text-xs" style={{ color: colors.muted }}>
-          {bullets.length} key points
-        </span>
+      {/* Numbered bullet cards — matches builder.js */}
+      <div className="flex-1 flex flex-col justify-center px-4 py-2 gap-1.5 overflow-hidden">
+        {bullets.map((bullet, i) => (
+          <div
+            key={i}
+            className="flex items-stretch rounded overflow-hidden"
+            style={{
+              backgroundColor: isDark ? '#112240' : '#F8FAFC',
+              border: `0.5px solid ${isDark ? colors.accent : '#E2E8F0'}`,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              minHeight: '2.2rem',
+            }}
+          >
+            {/* Number badge */}
+            <div
+              className="flex items-center justify-center font-bold flex-shrink-0"
+              style={{
+                width: '2rem',
+                backgroundColor: `#${colors.primary.replace('#', '')}`,
+                color: colors.accent,
+                fontSize: '0.8rem',
+              }}
+            >
+              {i + 1}
+            </div>
+            <span
+              className="flex items-center px-3 text-sm leading-snug"
+              style={{ color: textColor }}
+            >
+              {bullet}
+            </span>
+          </div>
+        ))}
       </div>
+
+      {/* Highlight callout — matches builder.js */}
+      {highlight_text && (
+        <div
+          className="flex-shrink-0 flex items-center justify-center text-center px-4"
+          style={{
+            backgroundColor: colors.accent,
+            height: '13%',
+            boxShadow: '0 -2px 8px rgba(0,0,0,0.15)',
+          }}
+        >
+          <span
+            className="font-bold text-xs"
+            style={{ color: isDark ? colors.bgDark : '#FFFFFF' }}
+          >
+            {highlight_text}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

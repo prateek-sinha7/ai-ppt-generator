@@ -55,7 +55,7 @@ class ProviderConfig:
     def _default_model(self) -> str:
         """Get default model name for provider"""
         defaults = {
-            ProviderType.CLAUDE: "claude-sonnet-4-6",
+            ProviderType.CLAUDE: "claude-haiku-4-5-20251001",
             ProviderType.OPENAI: "gpt-4o",
             ProviderType.GROQ: "llama-3.3-70b-versatile",
             ProviderType.LOCAL: "llama3",
@@ -67,7 +67,7 @@ class ProviderConfig:
         defaults = {
             ProviderType.CLAUDE: 16000,   # Claude supports up to 64k output
             ProviderType.OPENAI: 16000,
-            ProviderType.GROQ: 8000,
+            ProviderType.GROQ: 16000,     # Groq supports up to 32k — use 16k for safety
             ProviderType.LOCAL: 4096,
         }
         return defaults.get(self.provider_type, 4096)
@@ -328,7 +328,7 @@ class ProviderFactory:
                 groq_api_key=config.api_key,
                 model=config.model_name,
                 temperature=1.0,  # Match Groq example
-                max_tokens=8000,  # Increased for full presentation generation
+                max_tokens=16000,  # Large enough for full presentation JSON
                 callbacks=callbacks,
             )
         

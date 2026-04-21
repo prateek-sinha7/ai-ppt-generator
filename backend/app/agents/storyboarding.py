@@ -28,6 +28,7 @@ class SlideType(str, Enum):
     CHART = "chart"
     TABLE = "table"
     COMPARISON = "comparison"
+    METRIC = "metric"
 
 
 class VisualHint(str, Enum):
@@ -126,6 +127,7 @@ class StoryboardingAgent:
         SlideType.CHART: VisualHint.SPLIT_CHART_RIGHT,
         SlideType.TABLE: VisualHint.SPLIT_TABLE_LEFT,
         SlideType.COMPARISON: VisualHint.TWO_COLUMN,
+        SlideType.METRIC: VisualHint.HIGHLIGHT_METRIC,
     }
 
     def __init__(self):
@@ -260,10 +262,10 @@ class StoryboardingAgent:
             slide_types=problem_types
         ))
         
-        # Analysis section (mix of content, charts, tables)
+        # Analysis section (mix of content, charts, tables, metrics)
         analysis_types = self._generate_diverse_types(
             analysis_count,
-            preferred=[SlideType.CONTENT, SlideType.CHART, SlideType.TABLE]
+            preferred=[SlideType.CONTENT, SlideType.CHART, SlideType.TABLE, SlideType.METRIC]
         )
         sections.append(SectionPlan(
             name="Analysis",
@@ -271,10 +273,10 @@ class StoryboardingAgent:
             slide_types=analysis_types
         ))
         
-        # Evidence section (charts and comparisons)
+        # Evidence section (charts, comparisons, metrics)
         evidence_types = self._generate_diverse_types(
             evidence_count,
-            preferred=[SlideType.CHART, SlideType.COMPARISON, SlideType.TABLE]
+            preferred=[SlideType.CHART, SlideType.COMPARISON, SlideType.TABLE, SlideType.METRIC]
         )
         sections.append(SectionPlan(
             name="Evidence",

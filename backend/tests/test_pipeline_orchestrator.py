@@ -93,6 +93,7 @@ class TestPipelineSequence:
         """PIPELINE_SEQUENCE must follow the canonical agent order."""
         expected = [
             AgentName.INDUSTRY_CLASSIFIER,
+            AgentName.DESIGN,
             AgentName.STORYBOARDING,
             AgentName.RESEARCH,
             AgentName.DATA_ENRICHMENT,
@@ -267,6 +268,7 @@ class TestCheckpointRecovery:
         pre_ctx = make_context()
         pre_ctx.completed_agents = [
             AgentName.INDUSTRY_CLASSIFIER,
+            AgentName.DESIGN,
             AgentName.STORYBOARDING,
             AgentName.RESEARCH,
             AgentName.DATA_ENRICHMENT,

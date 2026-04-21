@@ -1,4 +1,4 @@
-import { Building2, Users, FileText, Sparkles } from 'lucide-react'
+import { Building2, Users, FileText, Sparkles, Palette } from 'lucide-react'
 
 interface DetectedContext {
   industry?: string
@@ -7,6 +7,7 @@ interface DetectedContext {
   template_name?: string
   confidence_score?: number
   theme?: string
+  design_palette?: string  // palette_name from DesignAgent
 }
 
 interface DetectedContextBadgesProps {
@@ -60,6 +61,16 @@ export default function DetectedContextBadges({ context }: DetectedContextBadges
     })
   }
 
+  // Design palette badge
+  if (context.design_palette) {
+    badges.push({
+      icon: Palette,
+      label: 'Palette',
+      value: context.design_palette,
+      color: 'orange',
+    })
+  }
+
   if (badges.length === 0) {
     return null
   }
@@ -69,6 +80,7 @@ export default function DetectedContextBadges({ context }: DetectedContextBadges
     green: 'bg-green-100 text-green-800 border-green-200',
     purple: 'bg-purple-100 text-purple-800 border-purple-200',
     pink: 'bg-pink-100 text-pink-800 border-pink-200',
+    orange: 'bg-orange-100 text-orange-800 border-orange-200',
   }
 
   return (

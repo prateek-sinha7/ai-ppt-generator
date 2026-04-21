@@ -4,8 +4,7 @@ import { useSSEStream } from '../hooks/useSSEStream'
 import { Theme } from '../types'
 import PresentationGenerator from './PresentationGenerator'
 import ProgressIndicator from './ProgressIndicator'
-import ProgressiveSlideViewer from './ProgressiveSlideViewer'
-import DetectedContextBadges from './DetectedContextBadges'
+import PptxPreviewPanel from './PptxPreviewPanel'
 import ErrorDisplay, { ErrorType } from './ErrorDisplay'
 import ProviderSwitchBanner from './ProviderSwitchBanner'
 import Header from './Header'
@@ -51,7 +50,7 @@ export default function PresentationWorkflow() {
   const [state, setState] = useState<WorkflowState>('input')
   const [presentationId, setPresentationId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [theme, setTheme] = useState<Theme>('mckinsey')
+  const [_theme, setTheme] = useState<Theme>('mckinsey')
   const [detectedContext, setDetectedContext] = useState<any>(null)
   const [errorType, setErrorType] = useState<ErrorType>('unknown')
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -59,6 +58,8 @@ export default function PresentationWorkflow() {
   const [providerSwitch, setProviderSwitch] = useState<ProviderSwitch | null>(null)
   const [qualityScore, setQualityScore] = useState<number | null>(null)
   const [totalSlides, setTotalSlides] = useState<number>(0)
+  const [_designSpec, setDesignSpec] = useState<any>(null)
+  const [previewReady, setPreviewReady] = useState(false)
 
   const sseState = useSSEStream(presentationId, state === 'generating')
 
@@ -79,6 +80,8 @@ export default function PresentationWorkflow() {
     setQualityScore(null)
     setTotalSlides(0)
     setDetectedContext(null)
+    setDesignSpec(null)
+    setPreviewReady(false)
   }
 
   // Monitor SSE events
@@ -123,6 +126,7 @@ export default function PresentationWorkflow() {
           .get(`/presentations/${presentationId}`)
           .then((response) => {
             setTheme(response.data.theme || 'mckinsey')
+            setDesignSpec(response.data.design_spec || null)
             setDetectedContext({
               industry: response.data.detected_industry,
               audience: response.data.detected_audience,
@@ -130,6 +134,7 @@ export default function PresentationWorkflow() {
               template_name: response.data.metadata?.template_name,
               theme: response.data.theme,
               confidence_score: response.data.detection_confidence,
+              design_palette: response.data.design_spec?.palette_name,
             })
           })
           .catch((err) => console.error('Failed to fetch presentation details:', err))
@@ -176,6 +181,7 @@ export default function PresentationWorkflow() {
     setProviderSwitch(null)
     setQualityScore(null)
     setTotalSlides(0)
+    setPreviewReady(false)
   }
 
   const handleCancel = async () => {
@@ -202,7 +208,6 @@ export default function PresentationWorkflow() {
         {/* ── GENERATING STATE ── */}
         {state === 'generating' && (
           <div className="space-y-4">
-            {detectedContext && <DetectedContextBadges context={detectedContext} />}
             {providerSwitch && (
               <ProviderSwitchBanner
                 fromProvider={providerSwitch.fromProvider}
@@ -216,16 +221,15 @@ export default function PresentationWorkflow() {
               isConnected={sseState.isConnected}
             />
 
-            {/* Progressive slide preview as they arrive */}
-            {sseState.events.some((e) => e.type === 'slide_ready') && (
-              <div className="mt-4">
-                <div className="w-full max-w-3xl mx-auto px-8 mb-2">
-                  <p className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-500" />
-                    Slides generating — preview below
+            {/* Slide count indicator — no UI preview, just a count */}
+            {totalSlides > 0 && (
+              <div className="w-full max-w-3xl mx-auto px-8">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3 flex items-center gap-3">
+                  <Sparkles className="w-4 h-4 text-blue-500 flex-shrink-0 animate-pulse" />
+                  <p className="text-sm text-blue-700 font-medium">
+                    {totalSlides} slide{totalSlides !== 1 ? 's' : ''} generated — preview will appear once complete
                   </p>
                 </div>
-                <ProgressiveSlideViewer events={sseState.events} theme={theme} />
               </div>
             )}
 
@@ -261,39 +265,46 @@ export default function PresentationWorkflow() {
                     {qualityScore !== null && (
                       <span>⭐ Quality score: {qualityScore.toFixed(1)} / 10</span>
                     )}
-                    {detectedContext?.industry && (
-                      <span>🏭 Industry: {detectedContext.industry}</span>
-                    )}
-                    {detectedContext?.theme && (
-                      <span>🎨 Theme: {detectedContext.theme}</span>
-                    )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Detected context badges */}
-            {detectedContext && <DetectedContextBadges context={detectedContext} />}
-
-            {/* Completed pipeline summary */}
+            {/* Completed pipeline summary — stays at 99% until preview is ready */}
             <ProgressIndicator
               events={sseState.events}
               isConnected={false}
+              previewRendering={!previewReady}
+              previewReady={previewReady}
             />
 
-            {/* Slides */}
-            <ProgressiveSlideViewer events={sseState.events} theme={theme} />
+            {/* Slides — real PPTX images (pixel-perfect match with download) */}
+            <PptxPreviewPanel
+              presentationId={presentationId!}
+              inline
+              onReady={() => setPreviewReady(true)}
+            />
 
             {/* Actions */}
-            <div className="w-full max-w-3xl mx-auto px-8 pb-8 flex gap-4">
-              <DownloadButton presentationId={presentationId!} className="flex-1" />
-              <button
-                onClick={handleRetry}
-                className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 border border-gray-300"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Create Another
-              </button>
+            <div className="w-full max-w-3xl mx-auto px-8 pb-8">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Download PPTX */}
+                <DownloadButton presentationId={presentationId!} />
+
+                {/* Create Another */}
+                <button
+                  onClick={handleRetry}
+                  className="h-14 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2.5 border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md active:bg-gray-100 shadow-sm"
+                >
+                  <RefreshCw className="w-4 h-4 text-gray-500" />
+                  Create Another
+                </button>
+              </div>
+
+              {/* Subtext row */}
+              <p className="text-xs text-center text-gray-400 mt-2">
+                Download link is available for 1 hour · PPTX format compatible with PowerPoint &amp; Keynote
+              </p>
             </div>
           </div>
         )}

@@ -186,7 +186,7 @@ class Presentation(Base):
         nullable=False,
         index=True,
     )
-    topic: Mapped[str] = mapped_column(String(500), nullable=False)
+    topic: Mapped[str] = mapped_column(String(5000), nullable=False)
 
     # Auto-detected by Industry_Classifier_Agent
     detected_industry: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -208,6 +208,7 @@ class Presentation(Base):
     )
     total_slides: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     slides: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    design_spec: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)  # DesignAgent output
     status: Mapped[PresentationStatus] = mapped_column(
         Enum(PresentationStatus, name="presentation_status"),
         nullable=False,

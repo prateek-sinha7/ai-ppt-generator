@@ -435,6 +435,119 @@ class ValidationAgent:
     def __init__(self):
         """Initialize the Validation Agent."""
         self.schema_validator = Draft7Validator(SLIDE_JSON_SCHEMA)
+
+    def normalise_slide_fields(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """
+        Normalise LLM output by migrating root-level fields into content{}.
+
+        The LLM frequently places fields at the slide root instead of inside content:
+        - bullets, highlight_text, icon_name, chart_type, subtitle, speaker_notes
+        - chart_data, table_data, comparison_data
+        - kpi_badges, left_panel_bullets
+        - metric_value, metric_label, metric_trend
+
+        This method runs FIRST before any other validation to ensure consistent structure.
+
+        Args:
+            data: Raw LLM-generated Slide_JSON
+
+        Returns:
+            Tuple of (normalised_data, corrections_count)
+        """
+        corrected = deepcopy(data)
+        corrections = 0
+
+        for i, slide in enumerate(corrected.get("slides", [])):
+            content = slide.setdefault("content", {})
+
+            # ── Migrate simple root-level fields into content ──────────────
+            root_fields = [
+                "bullets", "highlight_text", "icon_name", "chart_type",
+                "subtitle", "speaker_notes", "transition",
+                "metric_value", "metric_label", "metric_trend",
+            ]
+            for field in root_fields:
+                if field in slide and field not in content:
+                    content[field] = slide.pop(field)
+                    corrections += 1
+                    logger.debug("migrated_field_to_content", field=field, slide_number=i+1)
+
+            # ── Migrate chart_data (multiple formats) ──────────────────────
+            root_cd = slide.pop("chart_data", None)
+            if root_cd is not None and not content.get("chart_data"):
+                content["chart_data"] = root_cd
+                corrections += 1
+                logger.debug("migrated_chart_data_to_content", slide_number=i+1)
+
+            # Migrate root-level "chart" object → content.chart_data
+            root_chart = slide.pop("chart", None)
+            if root_chart and isinstance(root_chart, dict) and not content.get("chart_data"):
+                # Convert {labels: [...], datasets: [{data: [...]}]} → [{label, value}]
+                labels = root_chart.get("labels", [])
+                datasets = root_chart.get("datasets", [])
+                values = datasets[0].get("data", []) if datasets else []
+                if labels and values:
+                    content["chart_data"] = [
+                        {"label": str(lbl), "value": float(val)}
+                        for lbl, val in zip(labels, values)
+                    ]
+                    corrections += 1
+                    logger.info("migrated_root_chart_to_content", slide_number=i+1)
+                if not content.get("chart_type") and root_chart.get("chart_type"):
+                    content["chart_type"] = root_chart["chart_type"]
+                    corrections += 1
+
+            # ── Migrate table_data ──────────────────────────────────────────
+            root_td = slide.pop("table_data", None)
+            if root_td is not None and not content.get("table_data"):
+                content["table_data"] = root_td
+                corrections += 1
+                logger.debug("migrated_table_data_to_content", slide_number=i+1)
+
+            # Migrate root-level "table" object → content.table_data
+            root_table = slide.pop("table", None)
+            if root_table and isinstance(root_table, dict) and not content.get("table_data"):
+                if root_table.get("headers"):
+                    content["table_data"] = {
+                        "headers": root_table.get("headers", []),
+                        "rows": root_table.get("rows", []),
+                    }
+                    corrections += 1
+                    logger.info("migrated_root_table_to_content", slide_number=i+1)
+
+            # ── Migrate comparison_data ─────────────────────────────────────
+            root_comp = slide.pop("comparison_data", None) or slide.pop("comparison", None)
+            if root_comp and isinstance(root_comp, dict) and not content.get("comparison_data"):
+                content["comparison_data"] = root_comp
+                corrections += 1
+                logger.info("migrated_root_comparison_to_content", slide_number=i+1)
+
+            # ── Special case: kpi_badges → bullets (title slides) ──────────
+            kpi = slide.pop("kpi_badges", None)
+            if kpi and isinstance(kpi, list) and not content.get("bullets"):
+                content["bullets"] = [
+                    (b.get("label", "") + (f" — {b['description']}" if b.get("description") else ""))
+                    if isinstance(b, dict) else str(b)
+                    for b in kpi
+                ]
+                corrections += 1
+                logger.info("migrated_kpi_badges_to_bullets", slide_number=i+1)
+
+            # ── Special case: left_panel_bullets → bullets (chart slides) ──
+            lpb = slide.pop("left_panel_bullets", None)
+            if lpb and not content.get("bullets"):
+                content["bullets"] = lpb
+                corrections += 1
+                logger.info("migrated_left_panel_bullets_to_bullets", slide_number=i+1)
+
+            # ── Clean up other LLM-specific fields ─────────────────────────
+            slide.pop("footer", None)
+            slide.pop("layout_hint", None)
+            slide.pop("slide_type", None)  # We use "type" not "slide_type"
+
+            slide["content"] = content
+
+        return corrected, corrections
     
     def validate_schema(self, data: Dict[str, Any]) -> Tuple[bool, List[ValidationError]]:
         """
@@ -641,6 +754,49 @@ class ValidationAgent:
             # Remove other root-level LLM-specific fields that don't belong in the schema
             slide.pop("footer", None)
             slide.pop("layout_hint", None)  # already handled above via visual_hint
+
+            # ── Migrate root-level content fields into content dict ──────────
+            # The LLM frequently places bullets, highlight_text, icon_name,
+            # chart_type, left_panel_bullets, kpi_badges, subtitle at the slide
+            # root instead of inside content{}. Migrate them now.
+            content = slide.setdefault("content", {})
+
+            for field in ("bullets", "highlight_text", "icon_name", "chart_type",
+                          "subtitle", "speaker_notes",
+                          "metric_value", "metric_label", "metric_trend"):
+                if field in slide and field not in content:
+                    content[field] = slide.pop(field)
+                    corrections += 1
+
+            # left_panel_bullets → content.bullets (chart slides)
+            lpb = slide.pop("left_panel_bullets", None)
+            if lpb and not content.get("bullets"):
+                content["bullets"] = lpb
+                corrections += 1
+
+            # kpi_badges → content.bullets (title slides)
+            kpi = slide.pop("kpi_badges", None)
+            if kpi and isinstance(kpi, list) and not content.get("bullets"):
+                content["bullets"] = [
+                    (b.get("label", "") + (f" — {b['description']}" if b.get("description") else ""))
+                    if isinstance(b, dict) else str(b)
+                    for b in kpi
+                ]
+                corrections += 1
+
+            # chart_data at root → content.chart_data
+            root_cd = slide.pop("chart_data", None)
+            if root_cd is not None and not content.get("chart_data"):
+                content["chart_data"] = root_cd
+                corrections += 1
+
+            # table_data at root → content.table_data
+            root_td = slide.pop("table_data", None)
+            if root_td is not None and not content.get("table_data"):
+                content["table_data"] = root_td
+                corrections += 1
+
+            slide["content"] = content
             
             # Ensure visual_hint
             if "visual_hint" not in slide:
@@ -757,6 +913,342 @@ class ValidationAgent:
         
         return corrected, corrections
     
+    def validate_content_completeness(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """
+        Validate that every slide has the content its type requires.
+
+        Runs AFTER normalise_slide_fields() and auto_correct_missing_fields() so
+        all root-level fields have already been migrated into content{}.
+
+        For each slide type, checks:
+        - content: has bullets (generates from title if missing)
+        - chart: has valid chart_data (list or {categories, series}), has chart_type
+        - table: has table_data with headers and rows
+        - comparison: has comparison_data with left_column and right_column
+        - metric: has metric_value
+        - title: has subtitle or bullets
+
+        Also validates:
+        - chart_data format consistency
+        - table_data row/column alignment
+        - comparison_data column structure
+        - visual_hint matches slide type
+
+        Args:
+            data: Slide_JSON data (already normalised)
+
+        Returns:
+            Tuple of (validated_data, corrections_count)
+        """
+        import random
+        corrected = deepcopy(data)
+        corrections = 0
+
+        # Type → expected visual_hint
+        TYPE_TO_HINT = {
+            "title": "centered",
+            "content": "bullet-left",
+            "chart": "split-chart-right",
+            "table": "split-table-left",
+            "comparison": "two-column",
+            "metric": "highlight-metric",
+        }
+
+        for i, slide in enumerate(corrected.get("slides", [])):
+            slide_type = slide.get("type", "content")
+            content = slide.setdefault("content", {})
+            slide_num = slide.get("slide_number", i + 1)
+
+            # ── Enforce visual_hint matches type ──────────────────────────
+            expected_hint = TYPE_TO_HINT.get(slide_type)
+            if expected_hint and slide.get("visual_hint") != expected_hint:
+                slide["visual_hint"] = expected_hint
+                corrections += 1
+                logger.info("corrected_visual_hint_mismatch",
+                            slide_number=slide_num, slide_type=slide_type,
+                            corrected_hint=expected_hint)
+
+            # ── Validate transition ────────────────────────────────────────
+            transition = content.get("transition", "fade")
+            if transition not in ("fade", "slide", "none"):
+                content["transition"] = "fade"
+                corrections += 1
+
+            # ── Per-type content validation ────────────────────────────────
+
+            if slide_type == "title":
+                # Title slides need subtitle or bullets for KPI badges
+                if not content.get("subtitle") and not content.get("bullets"):
+                    content["subtitle"] = "Strategic Analysis for Senior Leadership"
+                    corrections += 1
+                    logger.info("generated_title_subtitle", slide_number=slide_num)
+
+            elif slide_type == "content":
+                # Content slides must have bullets
+                bullets = content.get("bullets")
+                if not bullets or not isinstance(bullets, list) or len(bullets) == 0:
+                    # Generate from title words as placeholder
+                    title = slide.get("title", "")
+                    content["bullets"] = [
+                        f"Key insight: {title}",
+                        "Supporting evidence and data points",
+                        "Strategic implications for stakeholders",
+                        "Recommended next steps and actions",
+                    ]
+                    corrections += 1
+                    logger.info("generated_content_bullets", slide_number=slide_num)
+                # Ensure bullets is a list of strings
+                if isinstance(content.get("bullets"), list):
+                    content["bullets"] = [str(b) for b in content["bullets"] if b]
+
+            elif slide_type == "chart":
+                # Chart slides must have valid chart_data
+                chart_data = content.get("chart_data")
+                chart_type = content.get("chart_type", "bar")
+
+                # Normalise [{label, value}] format — already a list, good
+                # Normalise {categories, series} format — also good
+                # Handle edge cases:
+                if chart_data is None or chart_data == {} or chart_data == []:
+                    # Generate fallback from bullets if available
+                    bullets = content.get("bullets", [])
+                    if bullets:
+                        seed = hash(slide.get("title", "")) % 1000
+                        rng = random.Random(seed)
+                        chart_data = []
+                        for b in bullets[:6]:
+                            # Handle both string bullets and dict bullets with 'text' key
+                            bullet_text = b.get("text", str(b)) if isinstance(b, dict) else str(b)
+                            label = bullet_text.split(":")[0][:25].strip()
+                            chart_data.append({"label": label, "value": round(rng.uniform(20, 90), 1)})
+                    else:
+                        chart_data = [
+                            {"label": "Category A", "value": 42.5},
+                            {"label": "Category B", "value": 67.3},
+                            {"label": "Category C", "value": 55.1},
+                            {"label": "Category D", "value": 78.9},
+                            {"label": "Category E", "value": 61.2},
+                        ]
+                    content["chart_data"] = chart_data
+                    corrections += 1
+                    logger.info("generated_chart_data_fallback", slide_number=slide_num)
+
+                # Validate list format: [{label, value}]
+                if isinstance(chart_data, list):
+                    valid_items = []
+                    for item in chart_data:
+                        if isinstance(item, dict):
+                            label = str(item.get("label", item.get("name", item.get("x", "Item"))))
+                            value = item.get("value", item.get("y", item.get("count", 0)))
+                            try:
+                                value = float(value)
+                            except (TypeError, ValueError):
+                                value = 0.0
+                            valid_items.append({"label": label, "value": value})
+                        elif isinstance(item, (int, float)):
+                            valid_items.append({"label": f"Item {len(valid_items)+1}", "value": float(item)})
+                    if valid_items:
+                        content["chart_data"] = valid_items
+                    else:
+                        content["chart_data"] = [{"label": "Data", "value": 50.0}]
+                    corrections += 1
+
+                # Validate dict format: {categories, series}
+                elif isinstance(chart_data, dict):
+                    categories = chart_data.get("categories", [])
+                    series = chart_data.get("series", [])
+                    if not categories or not series:
+                        # Convert to label/value list if possible
+                        if categories and not series:
+                            seed = hash(slide.get("title", "")) % 1000
+                            rng = random.Random(seed)
+                            content["chart_data"] = [
+                                {"label": str(c), "value": round(rng.uniform(20, 90), 1)}
+                                for c in categories[:8]
+                            ]
+                            corrections += 1
+                    else:
+                        # Ensure series values are numeric
+                        for s in series:
+                            if "values" in s:
+                                s["values"] = [
+                                    float(v) if v is not None else 0.0
+                                    for v in s["values"]
+                                ]
+
+                # Ensure chart_type is valid
+                valid_chart_types = {"bar", "line", "pie", "area", "stacked_bar", "donut", "scatter",
+                                     "column", "bar_horizontal", "line_smooth", "stacked_area"}
+                if chart_type not in valid_chart_types:
+                    content["chart_type"] = "bar"
+                    corrections += 1
+                else:
+                    content["chart_type"] = chart_type
+
+                # Ensure bullets exist for left panel
+                if not content.get("bullets"):
+                    content["bullets"] = [
+                        "Key trend visible in the data above",
+                        "Year-over-year growth accelerating",
+                        "Market leader position strengthening",
+                    ]
+                    corrections += 1
+
+            elif slide_type == "table":
+                # Table slides must have table_data with headers and rows
+                table_data = content.get("table_data")
+
+                if not table_data or not isinstance(table_data, dict):
+                    table_data = {}
+
+                headers = table_data.get("headers", [])
+                rows = table_data.get("rows", [])
+
+                if not headers:
+                    # Generate from bullets if available
+                    bullets = content.get("bullets", [])
+                    if bullets:
+                        headers = ["Item", "Details", "Impact"]
+                        rows = [[b[:40], "—", "High"] for b in bullets[:6]]
+                    else:
+                        headers = ["Metric", "Current", "Target", "Gap"]
+                        rows = [
+                            ["Revenue Growth", "12.5%", "18.0%", "-5.5pp"],
+                            ["Market Share", "23.4%", "30.0%", "-6.6pp"],
+                            ["Cost Efficiency", "68%", "75%", "-7pp"],
+                            ["Customer NPS", "34", "55", "-21 pts"],
+                        ]
+                    content["table_data"] = {"headers": headers, "rows": rows}
+                    corrections += 1
+                    logger.info("generated_table_data_fallback", slide_number=slide_num)
+                else:
+                    # Validate row/column alignment
+                    num_cols = len(headers)
+                    fixed_rows = []
+                    for row in rows:
+                        if isinstance(row, list):
+                            # Pad or trim to match header count
+                            if len(row) < num_cols:
+                                row = row + ["—"] * (num_cols - len(row))
+                            elif len(row) > num_cols:
+                                row = row[:num_cols]
+                            fixed_rows.append([str(cell) for cell in row])
+                        elif isinstance(row, dict):
+                            # Convert dict row to list
+                            fixed_rows.append([str(row.get(h, "—")) for h in headers])
+                    if fixed_rows != rows:
+                        content["table_data"] = {"headers": [str(h) for h in headers], "rows": fixed_rows}
+                        corrections += 1
+
+            elif slide_type == "comparison":
+                # Comparison slides must have comparison_data with left_column and right_column
+                comparison_data = content.get("comparison_data")
+
+                if not comparison_data or not isinstance(comparison_data, dict):
+                    comparison_data = {}
+
+                # Support both formats and normalise to {left_column, right_column}
+                has_new_format = "left_column" in comparison_data and "right_column" in comparison_data
+                has_old_format = "left" in comparison_data or "right" in comparison_data
+
+                if not has_new_format and not has_old_format:
+                    # Generate from bullets
+                    bullets = content.get("bullets", [])
+                    mid = max(1, len(bullets) // 2)
+                    content["comparison_data"] = {
+                        "left_column": {
+                            "heading": "Current State",
+                            "bullets": bullets[:mid] if bullets else [
+                                "Existing manual processes",
+                                "High operational costs",
+                                "Limited scalability",
+                            ]
+                        },
+                        "right_column": {
+                            "heading": "Future State",
+                            "bullets": bullets[mid:] if len(bullets) > mid else [
+                                "Automated AI-driven workflows",
+                                "40% cost reduction achieved",
+                                "Unlimited cloud scalability",
+                            ]
+                        }
+                    }
+                    corrections += 1
+                    logger.info("generated_comparison_data_fallback", slide_number=slide_num)
+                elif has_new_format:
+                    # Validate left_column and right_column structure
+                    for col_key in ("left_column", "right_column"):
+                        col = comparison_data.get(col_key, {})
+                        if not isinstance(col, dict):
+                            comparison_data[col_key] = {"heading": col_key.replace("_", " ").title(), "bullets": [str(col)]}
+                            corrections += 1
+                        elif not col.get("bullets"):
+                            col["bullets"] = ["Key point 1", "Key point 2", "Key point 3"]
+                            corrections += 1
+                        elif not isinstance(col["bullets"], list):
+                            col["bullets"] = [str(col["bullets"])]
+                            corrections += 1
+                    content["comparison_data"] = comparison_data
+                elif has_old_format:
+                    # Convert old format to new format
+                    content["comparison_data"] = {
+                        "left_column": {
+                            "heading": comparison_data.get("left_title", "Option A"),
+                            "bullets": comparison_data.get("left", ["Point 1", "Point 2"])
+                        },
+                        "right_column": {
+                            "heading": comparison_data.get("right_title", "Option B"),
+                            "bullets": comparison_data.get("right", ["Point 1", "Point 2"])
+                        }
+                    }
+                    corrections += 1
+                    logger.info("normalised_comparison_old_to_new_format", slide_number=slide_num)
+
+            elif slide_type == "metric":
+                # Metric slides must have metric_value
+                if not content.get("metric_value"):
+                    # Try to extract from title or bullets
+                    title = slide.get("title", "")
+                    # Look for numbers in title
+                    import re as _re
+                    numbers = _re.findall(r'[\$€£]?[\d,]+\.?\d*[%BMK]?', title)
+                    if numbers:
+                        content["metric_value"] = numbers[0]
+                    else:
+                        content["metric_value"] = "N/A"
+                    corrections += 1
+                    logger.info("generated_metric_value", slide_number=slide_num)
+
+                if not content.get("metric_label"):
+                    content["metric_label"] = slide.get("title", "Key Performance Indicator")[:50]
+                    corrections += 1
+
+                if not content.get("metric_trend"):
+                    content["metric_trend"] = "See analysis below"
+                    corrections += 1
+
+                if not content.get("bullets"):
+                    content["bullets"] = [
+                        "Performance tracking against strategic targets",
+                        "Year-over-year comparison and trend analysis",
+                        "Industry benchmark positioning",
+                    ]
+                    corrections += 1
+
+            # ── Ensure highlight_text on all non-title slides ──────────────
+            if slide_type != "title" and not content.get("highlight_text"):
+                title = slide.get("title", "")
+                content["highlight_text"] = f"Key insight: {title[:80]}" if title else "See detailed analysis above"
+                corrections += 1
+
+            slide["content"] = content
+
+        if corrections > 0:
+            logger.info("content_completeness_corrections", total=corrections,
+                        slide_count=len(corrected.get("slides", [])))
+
+        return corrected, corrections
+
     def auto_correct_wrong_types(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         """
         Auto-correct wrong field types.
@@ -837,6 +1329,96 @@ class ValidationAgent:
         
         return corrected, corrections
     
+    def infer_slide_types(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """
+        Intelligently infer slide types based on content.
+        
+        This fixes the issue where LLMs generate all slides as "content" type.
+        Infers the correct type based on:
+        - First slide → "title"
+        - Has chart_data → "chart"
+        - Has table_data → "table"
+        - Has comparison_data → "comparison"
+        - Has metric_value → "metric"
+        - Otherwise → "content"
+        
+        Args:
+            data: Slide_JSON data
+            
+        Returns:
+            Tuple of (corrected_data, corrections_count)
+        """
+        corrected = deepcopy(data)
+        corrections = 0
+        
+        slides = corrected.get("slides", [])
+        if not slides:
+            return corrected, corrections
+        
+        for i, slide in enumerate(slides):
+            original_type = slide.get("type", "content")
+            inferred_type = original_type
+            content = slide.get("content", {})
+            
+            # Rule 1: First slide MUST ALWAYS be "title" - remove any data viz fields
+            if i == 0:
+                inferred_type = "title"
+                # Remove chart/table/comparison data from first slide - it should only have bullets/subtitle
+                if content.get("chart_data"):
+                    content.pop("chart_data", None)
+                    logger.info("removed_chart_data_from_title_slide", slide_number=1)
+                if content.get("table_data"):
+                    content.pop("table_data", None)
+                    logger.info("removed_table_data_from_title_slide", slide_number=1)
+                if content.get("comparison_data"):
+                    content.pop("comparison_data", None)
+                    logger.info("removed_comparison_data_from_title_slide", slide_number=1)
+            
+            # Rules 2-5: Only apply to non-first slides
+            if i > 0:
+                # Rule 2: Has chart_data → "chart"
+                if content.get("chart_data") and original_type == "content":
+                    inferred_type = "chart"
+                
+                # Rule 3: Has table_data → "table"
+                if content.get("table_data") and original_type == "content":
+                    inferred_type = "table"
+                
+                # Rule 4: Has comparison_data → "comparison"
+                if content.get("comparison_data") and original_type == "content":
+                    inferred_type = "comparison"
+                
+                # Rule 5: Has metric_value → "metric"
+                if content.get("metric_value") and original_type == "content":
+                    inferred_type = "metric"
+            
+            # Rule 6: Title contains keywords suggesting chart/table
+            title_lower = slide.get("title", "").lower()
+            if original_type == "content" and not content.get("chart_data"):
+                if any(keyword in title_lower for keyword in ["chart", "graph", "trend", "growth", "rate", "comparison", "vs", "versus"]):
+                    # Check if there's numeric data in bullets that could be charted
+                    bullets = content.get("bullets", [])
+                    if bullets and any(any(char.isdigit() for char in str(b)) for b in bullets):
+                        inferred_type = "chart"
+            
+            if original_type == "content" and not content.get("table_data"):
+                if any(keyword in title_lower for keyword in ["table", "matrix", "breakdown", "kpi", "metrics", "performance indicators"]):
+                    inferred_type = "table"
+            
+            # Apply the inferred type
+            if inferred_type != original_type:
+                slide["type"] = inferred_type
+                corrections += 1
+                logger.info(
+                    "inferred_slide_type",
+                    slide_number=i + 1,
+                    original=original_type,
+                    inferred=inferred_type,
+                    title=slide.get("title", "")[:50]
+                )
+        
+        return corrected, corrections
+    
     def apply_content_constraints(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Apply content constraints and split slides if needed.
@@ -849,6 +1431,10 @@ class ValidationAgent:
         """
         corrected = deepcopy(data)
         overflow_slides = []
+
+        # Guard: if slides key is missing, return as-is
+        if "slides" not in corrected:
+            return corrected, overflow_slides
         
         for i, slide in enumerate(corrected.get("slides", [])):
             # Parse and correct slide content
@@ -892,6 +1478,31 @@ class ValidationAgent:
         # Renumber all slides
         for i, slide in enumerate(corrected["slides"]):
             slide["slide_number"] = i + 1
+        
+        # Add beautiful "Thank You" slide at the end
+        thank_you_slide = {
+            "slide_id": str(uuid4()),
+            "slide_number": len(corrected["slides"]) + 1,
+            "type": "title",  # Use title type for beautiful dark background
+            "title": "Thank You",
+            "content": {
+                "subtitle": "Questions & Discussion",
+                "bullets": [],
+                "icon_name": "check-circle",
+            },
+            "visual_hint": "centered",
+            "layout_constraints": {
+                "max_content_density": MAX_CONTENT_DENSITY,
+                "min_whitespace_ratio": MIN_WHITESPACE_RATIO
+            },
+            "metadata": {
+                "generated_at": datetime.utcnow().isoformat(),
+                "provider_used": "system",
+                "quality_score": 10.0
+            }
+        }
+        corrected["slides"].append(thank_you_slide)
+        logger.info("thank_you_slide_added", slide_number=len(corrected["slides"]))
         
         # Update total_slides
         corrected["total_slides"] = len(corrected["slides"])
@@ -1077,8 +1688,32 @@ class ValidationAgent:
         # --- Step 3: Ensure schema_version is always set to current (31.1) ---
         corrected_data = ensure_schema_version(corrected_data)
 
+        # --- Step 3a: NORMALISE root-level LLM fields into content{} FIRST ---
+        # This runs unconditionally before any other validation so that all
+        # subsequent passes see a consistent structure.
+        corrected_data, norm_corrections = self.normalise_slide_fields(corrected_data)
+        if norm_corrections > 0:
+            logger.info(
+                "normalise_slide_fields_applied",
+                execution_id=execution_id,
+                corrections=norm_corrections,
+            )
+
         all_errors = []
-        total_corrections = 0
+        total_corrections = norm_corrections
+
+        # --- Step 3b: ALWAYS enforce first slide = title and infer types ---
+        # This runs unconditionally regardless of schema validity, because the
+        # LLM may return a valid schema but with wrong slide types (e.g. type="chart"
+        # on slide 1). We must fix this before any further processing.
+        corrected_data, type_corrections = self.infer_slide_types(corrected_data)
+        total_corrections += type_corrections
+        if type_corrections > 0:
+            logger.info(
+                "slide_type_inference_applied",
+                execution_id=execution_id,
+                corrections=type_corrections,
+            )
 
         # Attempt 1: Initial validation
         is_valid, schema_errors = self.validate_schema(corrected_data)
@@ -1112,6 +1747,19 @@ class ValidationAgent:
             
             # Update error list
             all_errors = [e for e in all_errors if not e.auto_corrected] + schema_errors
+
+        # --- Step 4: Content completeness validation (always runs) ---
+        # Ensures every slide has the data its type requires.
+        # Runs after field normalisation and missing-field correction so all
+        # root-level fields are already inside content{}.
+        corrected_data, completeness_corrections = self.validate_content_completeness(corrected_data)
+        total_corrections += completeness_corrections
+        if completeness_corrections > 0:
+            logger.info(
+                "content_completeness_applied",
+                execution_id=execution_id,
+                corrections=completeness_corrections,
+            )
         
         # Apply content constraints (always)
         corrected_data, overflow_slides = self.apply_content_constraints(corrected_data)

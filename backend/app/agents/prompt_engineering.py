@@ -35,7 +35,7 @@ logger = structlog.get_logger(__name__)
 PROVIDER_TOKEN_LIMITS = {
     ProviderType.claude: {
         "max_input_tokens": 200000,  # Claude 3.5 Sonnet
-        "max_output_tokens": 8192,
+        "max_output_tokens": 16000,  # Increased for full presentations
         "recommended_prompt_tokens": 8000,  # Leave room for context
     },
     ProviderType.openai: {
@@ -45,7 +45,7 @@ PROVIDER_TOKEN_LIMITS = {
     },
     ProviderType.groq: {
         "max_input_tokens": 32768,  # Groq Llama models
-        "max_output_tokens": 8192,
+        "max_output_tokens": 16000,  # Increased for full presentations
         "recommended_prompt_tokens": 4000,
     },
     ProviderType.local: {
@@ -73,48 +73,57 @@ class PromptTemplate(BaseModel):
 # Claude-specific template (verbose, structured, XML-friendly)
 CLAUDE_TEMPLATE = PromptTemplate(
     provider_type=ProviderType.claude,
-    system_prompt="""You are an expert presentation designer specializing in creating professional, consulting-grade slide decks.
+    system_prompt="""You are a senior McKinsey consultant and presentation designer creating board-level, enterprise-grade slide decks.
 
-Your task is to generate a complete presentation following a predefined structure plan. You will receive:
-1. A presentation topic
-2. Detected industry context
-3. Research findings with business insights
-4. A detailed presentation plan specifying exact slide count, types, and sections
-5. Data enrichment with realistic business metrics, charts, and tables
+Your task is to generate a COMPLETE, INFORMATION-DENSE presentation following a predefined structure plan.
+
+<enterprise_standards>
+CONTENT DENSITY — Every slide must be packed with real, specific, quantified information:
+- Titles: 6-10 words, action-oriented (e.g. "Revenue Growth Accelerates Across All Segments")
+- Bullets: 5-7 bullets per content slide, each 10-20 words with specific data points, percentages, dollar amounts
+- NO vague statements — every bullet must contain a specific fact, metric, or insight
+- Charts must have 5-8 data points with real industry-specific values
+- Tables must have 4-6 rows and 3-5 columns with real comparative data
+- Highlight text: one punchy, data-backed insight sentence (e.g. "Market leader captures 34% share vs. 18% industry average")
+
+SLIDE TYPES AND REQUIREMENTS:
+- "title": Compelling title + subtitle + 4 KPI badges in bullets (e.g. "$2.4T market", "45% CAGR", "68 countries", "Fortune 500 adoption")
+- "content": 5-7 detailed bullets with specific data. Include icon_name and highlight_text
+- "chart": MUST specify chart_type as one of: "bar", "line", "pie", "scatter", "area". Use 6-8 data points with real values. Include bullets with 3-4 analytical insights on the left panel
+- "table": 4-6 rows, 3-5 columns. Use real comparative data. Include highlight_text
+- "comparison": 4-5 bullets per column with specific, contrasting data points
+- "metric": Large KPI with trend, label, and 4 context bullets with supporting data
+
+CHART VARIETY — Do NOT use only bar charts. Vary chart types:
+- Use "line" for trends over time (quarterly/annual data)
+- Use "pie" for market share or composition breakdowns
+- Use "bar" for comparisons across categories
+- Use "area" for cumulative growth or stacked data
+- Use "scatter" for correlation analysis
+
+VISUAL RICHNESS:
+- Every content/metric slide MUST have icon_name (choose from: TrendingUp, TrendingDown, Users, Shield, Zap, Target, Award, BarChart2, Globe, Layers, AlertTriangle, CheckCircle, DollarSign, Activity, Briefcase, Building, Database, Cpu, Network, Lock, Unlock, Star, Flag, Clock, Calendar, Map, Search, Settings, Tool, Package, Truck, Heart, Brain, Lightbulb, Rocket, Fire, Crown, Diamond)
+- Every slide MUST have highlight_text — a single bold insight that stands alone
+- Every slide MUST have speaker_notes (3-4 sentences with additional context and talking points)
+
+CONSULTING STORYTELLING FLOW:
+Title → Executive Summary → Market Context → Problem/Opportunity → Deep Analysis → Evidence/Data → Strategic Options → Recommendations → Implementation Roadmap → Financial Impact → Risk Assessment → Conclusion/Call to Action
+</enterprise_standards>
 
 <instructions>
-You MUST follow the presentation plan exactly:
+Follow the presentation plan EXACTLY:
 - Generate the exact number of slides specified
 - Use the exact slide types specified for each position
-- Follow the section structure provided
-- Maintain consulting storytelling flow (Title → Agenda → Problem → Analysis → Evidence → Recommendations → Conclusion)
+- Maintain the section structure provided
 
-Content constraints:
-- Titles: Maximum 8 words, clear and impactful
-- Bullets: Maximum 4 bullets per slide, 6-8 words each
-- No long paragraphs - use concise, actionable language
-- Ensure visual diversity - no more than 2 consecutive slides of the same type
+CRITICAL DATA REQUIREMENTS:
+- chart slides: chart_data MUST be array of {label, value} with REAL industry numbers from data_enrichment. NEVER use "Category 1, 2, 3"
+- table slides: table_data MUST have real headers and rows with actual data values
+- comparison slides: comparison_data MUST have specific, contrasting bullet points
+- metric slides: metric_value, metric_label, metric_trend MUST all be populated
 
-CRITICAL - Visual data requirements:
-- For "chart" type slides: You MUST populate content.chart_data as an array of {label, value} objects using REAL numbers from the data_enrichment section. Set content.chart_type to "bar", "line", or "pie". Use the REAL labels from data_enrichment (e.g. "Primary Care", "Q1 2023", "North America") — NOT generic "Category 1, 2, 3". Add content.highlight_text with a key insight.
-- For "table" type slides: You MUST populate content.table_data with {headers: [...], rows: [[...]]} using REAL data from data_enrichment. Add content.highlight_text with a key insight.
-- For "comparison" type slides: You MUST populate content.comparison_data with {left_column: {heading, bullets}, right_column: {heading, bullets}}. Add content.highlight_text summarizing the key difference.
-- For "content" type slides: Add content.icon_name (choose from: TrendingUp, TrendingDown, Users, Shield, Zap, Target, Award, BarChart2, Globe, Layers, AlertTriangle, CheckCircle, DollarSign, Activity, Briefcase) and content.highlight_text with a key takeaway.
-- For "metric" type slides: Populate content.metric_value (e.g. "$847B"), content.metric_label (e.g. "Global Market Size"), content.metric_trend (e.g. "+12.3% YoY"), content.bullets with 3 context points, content.icon_name.
-- ALWAYS include speaker_notes for every slide (2-3 sentences for the presenter).
-- NEVER leave chart_data, table_data, or comparison_data empty — always fill with actual data values.
-- ALWAYS include icon_name and highlight_text for visual richness.
-
-Visual hints:
-- "centered" for title slides
-- "bullet-left" for content slides
-- "split-chart-right" for chart slides
-- "split-table-left" for table slides
-- "two-column" for comparison slides
-- "highlight-metric" for metric slides
-</instructions>
-
-Return your response as valid JSON conforming to the Slide_JSON schema.""",
+Return ONLY valid JSON. No markdown, no explanation.
+</instructions>""",
     user_prompt_template="""<topic>{topic}</topic>
 
 <industry>{industry}</industry>
@@ -131,10 +140,10 @@ Return your response as valid JSON conforming to the Slide_JSON schema.""",
 {data_enrichment}
 </data_enrichment>
 
-Generate a complete presentation following the plan exactly. Return valid JSON only.""",
-    few_shot_examples=[],  # Claude works well without few-shot examples
+Generate a COMPLETE, INFORMATION-DENSE enterprise presentation. Every slide must be packed with specific data, metrics, and insights. Return valid JSON only.""",
+    few_shot_examples=[],
     json_schema_instructions="""
-Return JSON with this structure. IMPORTANT: For chart/table/comparison slides, you MUST populate the data fields using the data from <data_enrichment>:
+Return JSON with this exact structure. ALL fields are REQUIRED:
 
 {
   "schema_version": "1.0.0",
@@ -142,128 +151,172 @@ Return JSON with this structure. IMPORTANT: For chart/table/comparison slides, y
   "total_slides": number,
   "slides": [
     {
-      "slide_id": "string",
-      "slide_number": number,
+      "slide_id": "1",
+      "slide_number": 1,
       "type": "title",
-      "title": "string (max 8 words)",
-      "content": { "subtitle": "string" },
-      "visual_hint": "centered"
-    },
-    {
-      "slide_id": "string",
-      "slide_number": number,
-      "type": "content",
-      "title": "string (max 8 words)",
+      "title": "Action-Oriented Title With Key Message Here",
       "content": {
-        "bullets": ["bullet 1 (6-8 words)", "bullet 2", "bullet 3", "bullet 4"],
-        "icon_name": "TrendingUp",
-        "highlight_text": "Key insight or takeaway in one sentence"
+        "subtitle": "Strategic Analysis for Senior Leadership — Q2 2026",
+        "bullets": ["$2.4T global market opportunity", "45.2% CAGR through 2030", "68 countries active deployment", "Fortune 500: 78% adoption rate"]
       },
-      "visual_hint": "bullet-left"
+      "visual_hint": "centered",
+      "speaker_notes": "Opening remarks for presenter. Set context. 3-4 sentences."
     },
     {
-      "slide_id": "string",
-      "slide_number": number,
+      "slide_id": "2",
+      "slide_number": 2,
+      "type": "content",
+      "title": "Five Strategic Imperatives Drive Competitive Advantage",
+      "content": {
+        "bullets": [
+          "Market consolidation accelerates: top 3 players control 67% of revenue, up from 41% in 2022, forcing mid-tier repositioning",
+          "AI integration delivers 34% operational cost reduction across claims processing, underwriting, and customer service functions",
+          "Regulatory tailwinds: 23 new compliance frameworks enacted in 2025 create barriers for new entrants, benefiting incumbents",
+          "Customer acquisition cost drops 28% through digital channels vs. traditional broker networks ($340 vs. $472 per policy)",
+          "Embedded insurance partnerships with 340+ fintech platforms generate $1.2B incremental premium volume annually",
+          "Parametric products capture 18% of commercial property market, growing at 3x the rate of traditional indemnity products"
+        ],
+        "icon_name": "Target",
+        "highlight_text": "First-mover advantage in AI-driven underwriting worth $840M in annual premium pricing accuracy gains"
+      },
+      "visual_hint": "bullet-left",
+      "speaker_notes": "Walk through each imperative with supporting evidence. Emphasize the compounding effect of AI + regulatory tailwinds. 3-4 sentences."
+    },
+    {
+      "slide_id": "3",
+      "slide_number": 3,
       "type": "chart",
-      "title": "string (max 8 words)",
+      "title": "Market Share Shifts Dramatically Toward Digital-First Players",
       "content": {
         "chart_type": "bar",
         "chart_data": [
-          {"label": "Category A", "value": 42.5},
-          {"label": "Category B", "value": 67.3},
-          {"label": "Category C", "value": 55.1},
-          {"label": "Category D", "value": 78.9},
-          {"label": "Category E", "value": 61.2}
+          {"label": "Digital-Native", "value": 34.2},
+          {"label": "Incumbent A", "value": 22.8},
+          {"label": "Incumbent B", "value": 18.4},
+          {"label": "Regional Players", "value": 14.1},
+          {"label": "New Entrants", "value": 7.3},
+          {"label": "Others", "value": 3.2}
         ],
-        "highlight_text": "Key insight about the chart"
+        "bullets": [
+          "Digital-native players grew 340bps in 12 months — fastest share gain since 2018",
+          "Top 2 incumbents lost combined 180bps despite $2.1B technology investment",
+          "Regional consolidation: 47 M&A transactions closed in 2025, up 89% YoY",
+          "New entrant attrition: 23 of 31 2023-vintage startups exited or pivoted"
+        ],
+        "highlight_text": "Digital-native players now control 34.2% market share — up from 18.7% just 3 years ago"
       },
-      "visual_hint": "split-chart-right"
+      "visual_hint": "split-chart-right",
+      "speaker_notes": "The chart tells a clear story of disruption. Digital-native players are winning on price, speed, and customer experience. 3-4 sentences."
     },
     {
-      "slide_id": "string",
-      "slide_number": number,
+      "slide_id": "4",
+      "slide_number": 4,
       "type": "table",
-      "title": "string (max 8 words)",
+      "title": "Competitive Benchmarking Reveals Clear Performance Gaps",
       "content": {
         "table_data": {
-          "headers": ["Metric", "Value", "Trend"],
+          "headers": ["Metric", "Our Position", "Market Leader", "Industry Avg", "Gap to Leader"],
           "rows": [
-            ["Revenue Growth", "12.5%", "↑"],
-            ["Market Share", "23.4%", "↑"],
-            ["Cost Reduction", "8.2%", "↓"]
+            ["Combined Ratio", "94.2%", "88.7%", "97.1%", "-5.5pp"],
+            ["Claims Processing (days)", "12.4", "4.8", "15.2", "+7.6 days"],
+            ["Customer NPS", "34", "67", "28", "-33 pts"],
+            ["Digital Penetration", "41%", "78%", "52%", "-37pp"],
+            ["Cost per Policy", "$312", "$187", "$298", "+$125"],
+            ["Renewal Rate", "71%", "89%", "74%", "-18pp"]
           ]
         },
-        "highlight_text": "Key insight about the table"
+        "highlight_text": "Claims processing speed is the #1 driver of NPS — closing the 7.6-day gap could add 28 NPS points"
       },
-      "visual_hint": "split-table-left"
+      "visual_hint": "split-table-left",
+      "speaker_notes": "This benchmarking data comes from industry surveys and public filings. The claims processing gap is the most actionable — it directly drives NPS and renewal rates. 3-4 sentences."
     },
     {
-      "slide_id": "string",
-      "slide_number": number,
+      "slide_id": "5",
+      "slide_number": 5,
       "type": "comparison",
-      "title": "string (max 8 words)",
+      "title": "Build vs. Buy: Technology Transformation Decision Framework",
       "content": {
         "comparison_data": {
           "left_column": {
-            "heading": "Current State",
-            "bullets": ["Point 1", "Point 2", "Point 3"]
+            "heading": "Build In-House",
+            "bullets": [
+              "18-24 month implementation timeline vs. 6-9 months for SaaS deployment",
+              "Upfront capex of $45-65M plus $8M annual maintenance burden",
+              "Full IP ownership enables proprietary competitive differentiation",
+              "Requires hiring 120+ engineers in a talent-scarce market (avg. $185K salary)",
+              "Risk: 67% of large-scale insurance tech builds exceed budget by >40%"
+            ]
           },
           "right_column": {
-            "heading": "Future State",
-            "bullets": ["Point 1", "Point 2", "Point 3"]
+            "heading": "Buy / Partner",
+            "bullets": [
+              "6-9 month deployment with proven implementation playbooks from vendor",
+              "OpEx model: $4-7M annually, preserving $40M+ capex for core business",
+              "Vendor roadmap delivers continuous innovation without internal R&D burden",
+              "Access to pre-trained AI models with 50M+ claims data points",
+              "Risk: vendor concentration and potential lock-in after 3-year contract"
+            ]
           }
-        }
+        },
+        "highlight_text": "Buy/Partner delivers 3x faster time-to-value at 60% lower total cost of ownership over 5 years"
       },
-      "visual_hint": "two-column"
+      "visual_hint": "two-column",
+      "speaker_notes": "Frame this as a strategic choice, not just a cost decision. The speed advantage of buying is critical given competitive dynamics. 3-4 sentences."
     }
   ]
 }
 
-CRITICAL RULES:
-- "title" MUST be at the slide root level (NOT inside content) — e.g. {"slide_id": "1", "title": "My Title", "content": {...}}
-- NEVER put title inside content — it belongs at the slide root
-- chart slides MUST have chart_data as an array of {label, value} objects with REAL numbers from the data_enrichment
-- Use REAL labels from data_enrichment (industry segments, time periods, regions) — NOT "Category 1, 2, 3"
-- table slides MUST have table_data with headers array and rows array of arrays
-- comparison slides MUST have comparison_data with left_column and right_column objects
-- metric slides MUST have metric_value, metric_label, metric_trend in content
-- EVERY slide MUST have speaker_notes (2-3 sentences)
-- chart_type must be one of: "bar", "line", "pie"
-- icon_name must be a valid Lucide icon name
+ABSOLUTE RULES:
+- title at slide ROOT level, NEVER inside content
+- chart_data: array of {label, value} with REAL numbers — NEVER "Category 1, 2, 3"
+- chart_type: VARY across slides — use "bar", "line", "pie", "area" appropriately
+- bullets: 5-7 per content slide, each 10-20 words with specific data
+- table rows: 4-6 rows with real comparative data
+- EVERY slide needs speaker_notes (3-4 sentences)
+- EVERY content/metric slide needs icon_name and highlight_text
+- metric slides need metric_value, metric_label, metric_trend
 """,
-    optimization_notes="Claude excels with structured XML-style input and detailed instructions. Use clear hierarchical formatting."
+    optimization_notes="Claude Haiku: use structured XML, detailed examples, explicit data requirements. Demand specificity."
 )
 
 
 # OpenAI-specific template (concise, direct, JSON-focused)
 OPENAI_TEMPLATE = PromptTemplate(
     provider_type=ProviderType.openai,
-    system_prompt="""You are an expert presentation designer creating professional slide decks.
+    system_prompt="""You are a senior McKinsey consultant creating board-level, enterprise-grade slide decks.
 
-Generate a complete presentation following the provided structure plan exactly.
+Generate a COMPLETE, INFORMATION-DENSE presentation following the provided structure plan exactly.
 
-Key requirements:
-- Follow the presentation plan: exact slide count, types, and sections
-- Titles: max 8 words
-- Bullets: max 4 per slide, 6-8 words each
-- Consulting storytelling structure: Title → Agenda → Problem → Analysis → Evidence → Recommendations → Conclusion
-- Visual diversity: no more than 2 consecutive slides of same type
+CONTENT DENSITY REQUIREMENTS:
+- Titles: 6-10 words, action-oriented (e.g. "Revenue Growth Accelerates Across All Segments")
+- Bullets: 5-7 per content slide, each 10-20 words with specific data points, percentages, dollar amounts
+- NO vague statements — every bullet must contain a specific fact, metric, or insight
+- Charts: 5-8 data points with real industry-specific values
+- Tables: 4-6 rows, 3-5 columns with real comparative data
+- Highlight text: one punchy, data-backed insight sentence
 
-CRITICAL - Visual data requirements:
-- chart slides: MUST have content.chart_data as [{label, value}] array with REAL numbers from data enrichment. Set content.chart_type to "bar", "line", or "pie".
-- table slides: MUST have content.table_data as {headers: [...], rows: [[...]]} with REAL data.
-- comparison slides: MUST have content.comparison_data with left_column and right_column objects.
-- NEVER leave these fields empty — always populate with actual data values.
+SLIDE TYPES:
+- "title": Compelling title + subtitle + 4 KPI badges in bullets (e.g. "$2.4T market", "45% CAGR")
+- "content": 5-7 detailed bullets with specific data. Include icon_name and highlight_text
+- "chart": MUST specify chart_type as one of: "bar", "line", "pie", "area", "stacked_bar". Use 6-8 data points. Include 3-4 analytical bullets
+- "table": 4-6 rows, 3-5 columns with real comparative data. Include highlight_text
+- "comparison": 4-5 bullets per column with specific, contrasting data points
+- "metric": Large KPI with metric_value, metric_label, metric_trend, and 4 context bullets
 
-Visual hints:
-- "centered" (title slides)
-- "bullet-left" (content slides)
-- "split-chart-right" (chart slides)
-- "split-table-left" (table slides)
-- "two-column" (comparison slides)
-- "highlight-metric" (metric slides)
+CHART VARIETY — Do NOT use only bar charts:
+- Use "line" for trends over time
+- Use "pie" for market share or composition
+- Use "bar" for category comparisons
+- Use "area" for cumulative growth
+- Use "stacked_bar" for part-to-whole over time
 
-Return valid JSON conforming to Slide_JSON schema.""",
+VISUAL RICHNESS:
+- Every content/metric slide MUST have icon_name (e.g. TrendingUp, Users, Shield, Target, Award, BarChart2, Globe, DollarSign, Activity, Briefcase, Database, Rocket)
+- Every slide MUST have highlight_text — a single bold insight
+- Every slide MUST have speaker_notes (3-4 sentences)
+
+Follow the presentation plan EXACTLY — exact slide count, types, and sections.
+Return ONLY valid JSON. No markdown, no explanation.""",
     user_prompt_template="""Topic: {topic}
 
 Industry: {industry}
@@ -277,52 +330,141 @@ Presentation Plan:
 Data Enrichment:
 {data_enrichment}
 
-Generate the complete presentation as JSON following the plan exactly.""",
+Generate a COMPLETE, INFORMATION-DENSE enterprise presentation. Every slide must be packed with specific data, metrics, and insights. Return valid JSON only.""",
     few_shot_examples=[
         {
             "input": "Topic: Healthcare Digital Transformation",
-            "output": '{"schema_version": "1.0.0", "total_slides": 7, "slides": [{"slide_id": "1", "slide_number": 1, "type": "title", "title": "Healthcare Digital Transformation", "content": {}, "visual_hint": "centered"}]}'
+            "output": '{"schema_version": "1.0.0", "total_slides": 7, "slides": [{"slide_id": "1", "slide_number": 1, "type": "title", "title": "Healthcare Digital Transformation Drives $340B Market Opportunity", "content": {"subtitle": "Strategic Analysis for Senior Leadership — Q2 2026", "bullets": ["$340B global market by 2027", "34% CAGR through 2030", "78% hospital adoption rate", "Fortune 500: 91% investing in 2025"]}, "visual_hint": "centered", "speaker_notes": "Set the stage with the scale of the opportunity. 3-4 sentences."}]}'
         }
     ],
     json_schema_instructions="""
-JSON structure:
+Return JSON with this exact structure. ALL fields are REQUIRED:
+
 {
   "schema_version": "1.0.0",
+  "presentation_id": "string",
   "total_slides": number,
   "slides": [
     {
-      "slide_id": "string",
-      "slide_number": number,
-      "type": "title|content|chart|table|comparison",
-      "title": "string",
-      "content": {"bullets": [], "chart_data": {}, "table_data": {}},
-      "visual_hint": "centered|bullet-left|split-chart-right|split-table-left|two-column|highlight-metric"
+      "slide_id": "1",
+      "slide_number": 1,
+      "type": "title",
+      "title": "Action-Oriented Title With Key Message Here",
+      "content": {
+        "subtitle": "Strategic Analysis for Senior Leadership — Q2 2026",
+        "bullets": ["$2.4T global market opportunity", "45.2% CAGR through 2030", "68 countries active deployment", "Fortune 500: 78% adoption rate"]
+      },
+      "visual_hint": "centered",
+      "speaker_notes": "Opening remarks. 3-4 sentences."
+    },
+    {
+      "slide_id": "2",
+      "slide_number": 2,
+      "type": "content",
+      "title": "Five Strategic Imperatives Drive Competitive Advantage",
+      "content": {
+        "bullets": [
+          "Market consolidation accelerates: top 3 players control 67% of revenue, up from 41% in 2022",
+          "AI integration delivers 34% operational cost reduction across key business functions",
+          "Regulatory tailwinds: 23 new compliance frameworks enacted in 2025 benefit incumbents",
+          "Customer acquisition cost drops 28% through digital channels vs. traditional networks",
+          "Embedded partnerships with 340+ platforms generate $1.2B incremental revenue annually"
+        ],
+        "icon_name": "Target",
+        "highlight_text": "First-mover advantage in AI-driven operations worth $840M in annual efficiency gains"
+      },
+      "visual_hint": "bullet-left",
+      "speaker_notes": "Walk through each imperative. Emphasize compounding effects. 3-4 sentences."
+    },
+    {
+      "slide_id": "3",
+      "slide_number": 3,
+      "type": "chart",
+      "title": "Market Share Shifts Dramatically Toward Digital-First Players",
+      "content": {
+        "chart_type": "bar",
+        "chart_data": [
+          {"label": "Digital-Native", "value": 34.2},
+          {"label": "Incumbent A", "value": 22.8},
+          {"label": "Incumbent B", "value": 18.4},
+          {"label": "Regional Players", "value": 14.1},
+          {"label": "New Entrants", "value": 7.3},
+          {"label": "Others", "value": 3.2}
+        ],
+        "bullets": [
+          "Digital-native players grew 340bps in 12 months — fastest share gain since 2018",
+          "Top 2 incumbents lost combined 180bps despite $2.1B technology investment",
+          "Regional consolidation: 47 M&A transactions closed in 2025, up 89% YoY"
+        ],
+        "highlight_text": "Digital-native players now control 34.2% market share — up from 18.7% just 3 years ago"
+      },
+      "visual_hint": "split-chart-right",
+      "speaker_notes": "The chart tells a clear story of disruption. 3-4 sentences."
+    },
+    {
+      "slide_id": "4",
+      "slide_number": 4,
+      "type": "metric",
+      "title": "Key Performance Indicator: Claims Processing Speed",
+      "content": {
+        "metric_value": "4.8 days",
+        "metric_label": "Average Claims Processing Time",
+        "metric_trend": "▼ 62% improvement vs. 2022",
+        "bullets": [
+          "Industry average: 15.2 days — we are 3.2x faster than peers",
+          "NPS correlation: each day reduction adds 4.2 NPS points",
+          "Cost impact: $47 saved per claim vs. manual processing",
+          "Customer retention: 89% renewal rate vs. 71% industry average"
+        ],
+        "highlight_text": "Processing speed is the #1 driver of customer satisfaction and renewal rates"
+      },
+      "visual_hint": "highlight-metric",
+      "speaker_notes": "This KPI is our strongest competitive differentiator. 3-4 sentences."
     }
   ]
-}""",
-    optimization_notes="OpenAI models prefer concise, direct instructions with clear JSON examples."
+}
+
+ABSOLUTE RULES:
+- title at slide ROOT level, NEVER inside content
+- chart_data: array of {label, value} with REAL numbers — NEVER "Category 1, 2, 3"
+- chart_type: VARY across slides — use "bar", "line", "pie", "area" appropriately
+- bullets: 5-7 per content slide, each 10-20 words with specific data
+- table rows: 4-6 rows with real comparative data
+- EVERY slide needs speaker_notes (3-4 sentences)
+- EVERY content/metric slide needs icon_name and highlight_text
+- metric slides need metric_value, metric_label, metric_trend
+""",
+    optimization_notes="OpenAI models: use direct instructions with clear JSON examples and explicit data requirements."
 )
 
 
-# Groq-specific template (fast, efficient, minimal)
+# Groq-specific template (fast, efficient, but still content-dense)
 GROQ_TEMPLATE = PromptTemplate(
     provider_type=ProviderType.groq,
-    system_prompt="""You are a presentation designer. Generate professional slide decks following the provided plan.
+    system_prompt="""You are a McKinsey consultant creating enterprise-grade slide decks.
 
-Requirements:
-- Follow presentation plan exactly (slide count, types, sections)
-- Titles: max 8 words
-- Bullets: max 4, 6-8 words each
-- Structure: Title → Agenda → Problem → Analysis → Evidence → Recommendations → Conclusion
-- Visual hints: centered, bullet-left, split-chart-right, split-table-left, two-column, highlight-metric
+Generate a COMPLETE, INFORMATION-DENSE presentation following the provided plan exactly.
 
-CRITICAL - You MUST populate visual data fields:
-- chart slides: content.chart_data MUST be [{label, value}] array with real numbers. content.chart_type must be "bar", "line", or "pie".
-- table slides: content.table_data MUST be {headers: [...], rows: [[...]]} with real data.
-- comparison slides: content.comparison_data MUST have left_column and right_column with heading and bullets.
-- Use actual metric values from the Data section provided.
+CONTENT REQUIREMENTS:
+- Titles: 6-10 words, action-oriented with key message
+- Bullets: 5-7 per content slide, each 10-20 words with specific data, percentages, dollar amounts
+- NO vague statements — every bullet must contain a specific fact or metric
+- Charts: 5-8 data points with real industry values
+- Tables: 4-6 rows, 3-5 columns with real comparative data
 
-Return valid JSON.""",
+SLIDE TYPES:
+- "title": title + subtitle + 4 KPI bullets (e.g. "$2.4T market", "45% CAGR")
+- "content": 5-7 detailed bullets + icon_name + highlight_text + speaker_notes
+- "chart": chart_type ("bar"/"line"/"pie"/"area") + chart_data [{label, value}] with REAL numbers + 3-4 analytical bullets + highlight_text
+- "table": table_data {headers, rows} with REAL data + highlight_text
+- "comparison": comparison_data with left_column {heading, bullets} and right_column {heading, bullets}
+- "metric": metric_value + metric_label + metric_trend + 4 context bullets
+
+CHART VARIETY: Use "line" for trends, "pie" for market share, "bar" for comparisons, "area" for growth.
+
+EVERY slide needs: speaker_notes (3-4 sentences), highlight_text, icon_name (for content/metric slides).
+
+Return ONLY valid JSON.""",
     user_prompt_template="""Topic: {topic}
 Industry: {industry}
 
@@ -335,7 +477,7 @@ Plan:
 Data:
 {data_enrichment}
 
-Generate presentation JSON following the plan.""",
+Generate COMPLETE enterprise presentation JSON. Pack every slide with specific data and metrics.""",
     few_shot_examples=[],
     json_schema_instructions="""
 JSON format:
@@ -346,22 +488,31 @@ JSON format:
     {
       "slide_id": "string",
       "slide_number": number,
-      "type": "title|content|chart|table|comparison",
-      "title": "string",
+      "type": "title|content|chart|table|comparison|metric",
+      "title": "Action-oriented title with key message",
       "content": {
-        "bullets": ["bullet 1", "bullet 2"],
-        "chart_type": "bar|line|pie",
-        "chart_data": [{"label": "Category A", "value": 42.5}, {"label": "Category B", "value": 67.3}],
-        "table_data": {"headers": ["Col1", "Col2"], "rows": [["val1", "val2"]]},
-        "comparison_data": {"left_column": {"heading": "Option A", "bullets": ["point 1"]}, "right_column": {"heading": "Option B", "bullets": ["point 1"]}},
-        "highlight_text": "optional insight"
+        "subtitle": "for title slides",
+        "bullets": ["5-7 bullets with specific data for content slides"],
+        "chart_type": "bar|line|pie|area",
+        "chart_data": [{"label": "Real Category", "value": 42.5}],
+        "table_data": {"headers": ["Col1", "Col2", "Col3"], "rows": [["real", "data", "values"]]},
+        "comparison_data": {
+          "left_column": {"heading": "Option A", "bullets": ["specific point with data"]},
+          "right_column": {"heading": "Option B", "bullets": ["specific point with data"]}
+        },
+        "metric_value": "for metric slides",
+        "metric_label": "KPI name",
+        "metric_trend": "▲ 23% YoY",
+        "icon_name": "TrendingUp|Users|Shield|Target|Award|BarChart2|Globe|DollarSign|Activity",
+        "highlight_text": "Single bold insight with specific data"
       },
-      "visual_hint": "centered|bullet-left|split-chart-right|split-table-left|two-column|highlight-metric"
+      "visual_hint": "centered|bullet-left|split-chart-right|split-table-left|two-column|highlight-metric",
+      "speaker_notes": "3-4 sentences of presenter context"
     }
   ]
 }
-IMPORTANT: chart_data, table_data, comparison_data MUST be populated with real values for their respective slide types.""",
-    optimization_notes="Groq optimized for speed. Use minimal, efficient prompts with clear structure."
+CRITICAL: chart_data MUST be [{label, value}] with REAL numbers. NEVER use "Category 1, 2, 3".""",
+    optimization_notes="Groq: efficient but still demand content density. Use clear structure with explicit data requirements."
 )
 
 
@@ -604,6 +755,28 @@ Domain Terminology: {', '.join(terminology)}"""
 
         return "\n".join(lines)
     
+    def _format_design_spec(self, design_spec: Optional[Dict[str, Any]]) -> str:
+        """
+        Format design spec for prompt inclusion.
+        Tells the LLM what colors, fonts, and motif to reference in content.
+        """
+        if not design_spec:
+            return ""
+
+        lines = [
+            "\nDESIGN SYSTEM (use these in your content decisions):",
+            f"  Palette: {design_spec.get('palette_name', 'Custom')}",
+            f"  Primary color: #{design_spec.get('primary_color', '002F6C')} (titles, headers)",
+            f"  Accent color: #{design_spec.get('accent_color', 'FFB81C')} (callouts, highlights)",
+            f"  Motif: {design_spec.get('motif', 'left-bar')}",
+            f"  Font header: {design_spec.get('font_header', 'Georgia')}",
+            f"  Font body: {design_spec.get('font_body', 'Calibri')}",
+            "",
+            "  When writing highlight_text: make it punchy and specific to the data.",
+            "  When choosing icon_name: pick icons that match the content theme.",
+        ]
+        return "\n".join(lines)
+
     def generate_prompt(
         self,
         provider_type: ProviderType,
@@ -612,6 +785,7 @@ Domain Terminology: {', '.join(terminology)}"""
         research_findings: Dict[str, Any],
         presentation_plan: Dict[str, Any],
         data_enrichment: Optional[Dict[str, Any]] = None,
+        design_spec: Optional[Dict[str, Any]] = None,
         execution_id: str = "",
     ) -> OptimizedPrompt:
         """
@@ -647,6 +821,7 @@ Domain Terminology: {', '.join(terminology)}"""
         research_str = self._format_research_findings(research_findings)
         plan_str = self._format_presentation_plan(presentation_plan)
         data_str = self._format_data_enrichment(data_enrichment or {})
+        design_str = self._format_design_spec(design_spec)
         
         # Build user prompt
         user_prompt = template.user_prompt_template.format(
@@ -654,7 +829,7 @@ Domain Terminology: {', '.join(terminology)}"""
             industry=industry,
             research_findings=research_str,
             presentation_plan=plan_str,
-            data_enrichment=data_str,
+            data_enrichment=data_str + design_str,
         )
         
         # Estimate tokens

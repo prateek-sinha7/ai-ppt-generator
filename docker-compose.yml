@@ -69,6 +69,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       MINIO_ENDPOINT: minio:9000
+      PPTX_SERVICE_URL: http://pptx-service:3001
     ports:
       - "8000:8000"
     depends_on:
@@ -77,6 +78,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      pptx-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -101,13 +104,34 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       MINIO_ENDPOINT: minio:9000
+      PPTX_SERVICE_URL: http://pptx-service:3001
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      pptx-service:
+        condition: service_healthy
     volumes:
       - ./backend:/app
+
+  # ── PPTX Service (Node.js pptxgenjs — Claude-quality rendering) ─────────────
+  pptx-service:
+    build:
+      context: ./pptx-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # ── Frontend (React + Vite) ──────────────────────────────────────────────────
   frontend:

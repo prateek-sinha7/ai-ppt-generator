@@ -21,7 +21,7 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>", re.IGNORECASE)
 # Matches javascript: URI scheme
 _JS_URI_RE = re.compile(r"javascript\s*:", re.IGNORECASE)
 
-TOPIC_MAX_LENGTH = 500
+TOPIC_MAX_LENGTH = 5000
 
 # Only sanitize JSON bodies on these content-types
 _JSON_CONTENT_TYPES = ("application/json",)

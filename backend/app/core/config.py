@@ -58,5 +58,8 @@ class Settings(BaseSettings):
     TENANT_DAILY_COST_THRESHOLD_USD: float = 10.0
     COST_ALERT_WEBHOOK_URL: Optional[str] = None
 
+    # PPTX Service (Node.js pptxgenjs microservice)
+    PPTX_SERVICE_URL: str = "http://pptx-service:3001"
+
 
 settings = Settings()

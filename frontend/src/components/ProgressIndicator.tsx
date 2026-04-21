@@ -4,6 +4,10 @@ import { SSEEvent } from '../hooks/useSSEStream'
 interface ProgressIndicatorProps {
   events: SSEEvent[]
   isConnected: boolean
+  /** When true, the synthetic "Rendering Preview" step shows as running */
+  previewRendering?: boolean
+  /** When true, the synthetic "Rendering Preview" step shows as completed */
+  previewReady?: boolean
 }
 
 interface AgentStatus {
@@ -21,6 +25,11 @@ const AGENT_PIPELINE: { name: string; displayName: string; description: string }
     name: 'industry_classifier',
     displayName: 'Industry Classification',
     description: 'Detecting industry, audience & template',
+  },
+  {
+    name: 'design',
+    displayName: 'Design System',
+    description: 'Choosing palette, motif & typography for this topic',
   },
   {
     name: 'storyboarding',
@@ -59,12 +68,15 @@ const AGENT_PIPELINE: { name: string; displayName: string; description: string }
   },
 ]
 
+// Synthetic step appended after all agents complete
+const PREVIEW_STEP_NAME = '__preview_render__'
+
 function formatElapsed(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-export default function ProgressIndicator({ events, isConnected }: ProgressIndicatorProps) {
+export default function ProgressIndicator({ events, isConnected, previewRendering = false, previewReady = false }: ProgressIndicatorProps) {
   // Track start times locally using event timestamps
   const agentStartTimes: Record<string, number> = {}
   const agentElapsed: Record<string, number> = {}
@@ -101,10 +113,29 @@ export default function ProgressIndicator({ events, isConnected }: ProgressIndic
     return { ...agent, status: 'pending' as const }
   })
 
-  const completedCount = agentStatuses.filter((a) => a.status === 'completed').length
+  // Synthetic "Rendering Preview" step — appended after all pipeline agents
+  const allAgentsComplete = agentStatuses.every((a) => a.status === 'completed')
+  const previewStepStatus: AgentStatus['status'] = previewReady
+    ? 'completed'
+    : previewRendering || allAgentsComplete
+    ? 'running'
+    : 'pending'
+
+  const previewStep: AgentStatus = {
+    name: PREVIEW_STEP_NAME,
+    displayName: 'Rendering Preview',
+    description: 'Building PPTX and converting slides to images',
+    status: previewStepStatus,
+  }
+
+  const allStatuses = [...agentStatuses, previewStep]
+
+  const completedCount = allStatuses.filter((a) => a.status === 'completed').length
+  const totalSteps = allStatuses.length
   const hasError = agentStatuses.some((a) => a.status === 'error')
-  const currentAgent = agentStatuses.find((a) => a.status === 'running')
-  const progressPercent = Math.round((completedCount / AGENT_PIPELINE.length) * 100)
+  const currentAgent = allStatuses.find((a) => a.status === 'running')
+  // 100% only when preview is also ready
+  const progressPercent = Math.round((completedCount / totalSteps) * 100)
 
   // Check for quality score
   const qualityEvent = events.find((e) => e.type === 'quality_score')
@@ -119,7 +150,7 @@ export default function ProgressIndicator({ events, isConnected }: ProgressIndic
             <div className="flex items-center gap-3">
               {hasError ? (
                 <XCircle className="w-6 h-6 text-red-300" />
-              ) : completedCount === AGENT_PIPELINE.length ? (
+              ) : completedCount === totalSteps ? (
                 <CheckCircle className="w-6 h-6 text-green-300" />
               ) : (
                 <Loader2 className="w-6 h-6 animate-spin text-blue-200" />
@@ -127,15 +158,17 @@ export default function ProgressIndicator({ events, isConnected }: ProgressIndic
               <h2 className="text-xl font-semibold">
                 {hasError
                   ? 'Generation Failed'
-                  : completedCount === AGENT_PIPELINE.length
+                  : completedCount === totalSteps
                   ? 'Presentation Ready!'
+                  : previewRendering || (allAgentsComplete && !previewReady)
+                  ? 'Rendering Preview…'
                   : 'Generating Presentation'}
               </h2>
             </div>
             <div className="text-right">
               <span className="text-2xl font-bold">{progressPercent}%</span>
               <p className="text-xs text-blue-200 mt-0.5">
-                {completedCount} / {AGENT_PIPELINE.length} agents
+                {completedCount} / {totalSteps} steps
               </p>
             </div>
           </div>
@@ -154,11 +187,13 @@ export default function ProgressIndicator({ events, isConnected }: ProgressIndic
           <div className="mt-3 flex items-center justify-between text-sm text-blue-100">
             <span>
               {currentAgent
-                ? `⚡ ${currentAgent.displayName}...`
+                ? currentAgent.name === PREVIEW_STEP_NAME
+                  ? '🖼️ Rendering slides to images…'
+                  : `⚡ ${currentAgent.displayName}...`
                 : hasError
                 ? 'Pipeline stopped due to error'
-                : completedCount === AGENT_PIPELINE.length
-                ? '✅ All agents completed successfully'
+                : completedCount === totalSteps
+                ? '✅ All steps completed successfully'
                 : 'Initialising pipeline...'}
             </span>
             {!isConnected && completedCount < AGENT_PIPELINE.length && !hasError && (
@@ -188,7 +223,7 @@ export default function ProgressIndicator({ events, isConnected }: ProgressIndic
 
         {/* Agent list */}
         <div className="p-6 space-y-2">
-          {agentStatuses.map((agent, index) => (
+          {allStatuses.map((agent, index) => (
             <div
               key={agent.name}
               className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-300 ${
@@ -272,16 +307,16 @@ export default function ProgressIndicator({ events, isConnected }: ProgressIndic
             <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-between text-sm text-gray-600">
               <span className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                {completedCount === AGENT_PIPELINE.length
-                  ? `Total pipeline time: ${formatElapsed(
+                {completedCount === totalSteps
+                  ? `Total time: ${formatElapsed(
                       agentStatuses.reduce((s, a) => s + (a.elapsedMs ?? 0), 0)
                     )}`
-                  : `${completedCount} of ${AGENT_PIPELINE.length} agents completed`}
+                  : `${completedCount} of ${totalSteps} steps completed`}
               </span>
-              {completedCount === AGENT_PIPELINE.length && (
+              {completedCount === totalSteps && (
                 <span className="text-green-600 font-medium flex items-center gap-1">
                   <CheckCircle className="w-4 h-4" />
-                  Pipeline complete
+                  Ready
                 </span>
               )}
             </div>

@@ -5,12 +5,13 @@ import {
   TrendingUp, Hash,
 } from 'lucide-react'
 import { SSEEvent } from '../hooks/useSSEStream'
-import { SlideData, Theme } from '../types'
+import { SlideData, Theme, DesignSpec } from '../types'
 import { SlideRenderer } from './slides/SlideRenderer'
 
 interface ProgressiveSlideViewerProps {
   events: SSEEvent[]
   theme: Theme
+  designSpec?: DesignSpec | null
 }
 
 function parseSlide(event: SSEEvent): SlideData {
@@ -113,7 +114,7 @@ const TYPE_COLORS: Record<string, string> = {
   comparison: '#f59e0b', metric: '#ec4899', content: '#6b7280',
 }
 
-export default function ProgressiveSlideViewer({ events, theme }: ProgressiveSlideViewerProps) {
+export default function ProgressiveSlideViewer({ events, theme, designSpec }: ProgressiveSlideViewerProps) {
   const [slides, setSlides] = useState<SlideData[]>([])
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [declaredTotal, setDeclaredTotal] = useState<number | null>(null)
@@ -286,7 +287,13 @@ export default function ProgressiveSlideViewer({ events, theme }: ProgressiveSli
             style={{ opacity: isTransitioning ? 0 : 1, transition: 'opacity 0.15s ease' }}
           >
             <div className="w-full h-full">
-              <SlideRenderer slide={currentSlide} theme={theme} className="w-full h-full" />
+              <SlideRenderer
+                slide={currentSlide}
+                theme={theme}
+                designSpec={designSpec}
+                isDark={currentSlideIndex === 0 || currentSlideIndex === slides.length - 1}
+                className="w-full h-full"
+              />
             </div>
           </div>
 

@@ -43,6 +43,16 @@ export const updateSlide = (presentationId: string, slideId: string, content: Pa
   apiClient.patch(`/presentations/${presentationId}/slides/${slideId}`, content)
 
 // --- Export ---
+// Direct blob download — backend builds PPTX synchronously and streams it back.
+// No MinIO, no polling, no signed URLs.
+export const downloadPptx = (presentationId: string) =>
+  apiClient.post(
+    `/presentations/${presentationId}/export/pptx`,
+    {},
+    { responseType: 'blob' }
+  )
+
+// Kept for compatibility with ExportPreviewPanel (returns status + download_url)
 export const triggerPptxExport = (presentationId: string) =>
   apiClient.post(`/presentations/${presentationId}/export/pptx`)
 

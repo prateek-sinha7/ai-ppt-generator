@@ -108,7 +108,7 @@ def _add_rate_limit_headers(response: Response, info: Dict[str, int]) -> None:
 
 
 class CreatePresentationRequest(BaseModel):
-    topic: str = Field(..., min_length=1, max_length=500, description="Presentation topic")
+    topic: str = Field(..., min_length=1, max_length=5000, description="Presentation topic or pasted content")
 
     @field_validator("topic")
     @classmethod

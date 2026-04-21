@@ -47,6 +47,7 @@ logger = structlog.get_logger(__name__)
 
 class AgentName(str, Enum):
     INDUSTRY_CLASSIFIER = "industry_classifier"
+    DESIGN = "design"
     STORYBOARDING = "storyboarding"
     RESEARCH = "research"
     DATA_ENRICHMENT = "data_enrichment"
@@ -59,6 +60,7 @@ class AgentName(str, Enum):
 # Pipeline execution order
 PIPELINE_SEQUENCE: List[AgentName] = [
     AgentName.INDUSTRY_CLASSIFIER,
+    AgentName.DESIGN,
     AgentName.STORYBOARDING,
     AgentName.RESEARCH,
     AgentName.DATA_ENRICHMENT,
@@ -75,6 +77,7 @@ PIPELINE_SEQUENCE: List[AgentName] = [
 
 AGENT_LATENCY_BUDGETS: Dict[AgentName, float] = {
     AgentName.INDUSTRY_CLASSIFIER: 15.0,
+    AgentName.DESIGN: 20.0,  # LLM call for design spec
     AgentName.STORYBOARDING: 10.0,
     AgentName.RESEARCH: 30.0,
     AgentName.DATA_ENRICHMENT: 20.0,
@@ -193,6 +196,7 @@ class PipelineContext:
 
     # Populated by each agent
     detected_context: Optional[Dict[str, Any]] = None
+    design_spec: Optional[Dict[str, Any]] = None  # DesignAgent output
     presentation_plan: Optional[Dict[str, Any]] = None
     research_findings: Optional[Dict[str, Any]] = None
     enriched_data: Optional[Dict[str, Any]] = None
@@ -214,6 +218,7 @@ class PipelineContext:
             "execution_id": self.execution_id,
             "topic": self.topic,
             "detected_context": self.detected_context,
+            "design_spec": self.design_spec,
             "presentation_plan": self.presentation_plan,
             "research_findings": self.research_findings,
             "enriched_data": self.enriched_data,
@@ -235,6 +240,7 @@ class PipelineContext:
             topic=data["topic"],
         )
         ctx.detected_context = data.get("detected_context")
+        ctx.design_spec = data.get("design_spec")
         ctx.presentation_plan = data.get("presentation_plan")
         ctx.research_findings = data.get("research_findings")
         ctx.enriched_data = data.get("enriched_data")
@@ -437,6 +443,7 @@ class PipelineOrchestrator:
         if self._agents_loaded:
             return
         from app.agents.industry_classifier import industry_classifier
+        from app.agents.design_agent import design_agent
         from app.agents.storyboarding import StoryboardingAgent
         from app.agents.research import research_agent
         from app.agents.data_enrichment import data_enrichment_agent
@@ -447,6 +454,7 @@ class PipelineOrchestrator:
         from app.db.models import ProviderType as DBProviderType
 
         self._industry_classifier = industry_classifier
+        self._design_agent = design_agent
         self._storyboarding = StoryboardingAgent()
         self._research = research_agent
         self._data_enrichment = data_enrichment_agent
@@ -509,7 +517,7 @@ class PipelineOrchestrator:
             # we can attempt a cache lookup immediately.
             if ctx.detected_context:
                 _industry = ctx.detected_context.get("industry", "general")
-                _theme = ctx.detected_context.get("theme", "mckinsey")
+                _theme = ctx.detected_context.get("theme", "deloitte")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION
@@ -802,6 +810,8 @@ class PipelineOrchestrator:
         """Route to the correct agent implementation."""
         if agent_name == AgentName.INDUSTRY_CLASSIFIER:
             await self._run_industry_classifier(ctx)
+        elif agent_name == AgentName.DESIGN:
+            await self._run_design_agent(ctx)
         elif agent_name == AgentName.STORYBOARDING:
             await self._run_storyboarding(ctx)
         elif agent_name == AgentName.RESEARCH:
@@ -855,6 +865,38 @@ class PipelineOrchestrator:
             template_name=result.selected_template_name,
             theme=result.theme,
             method=result.classification_method
+        )
+
+    async def _run_design_agent(self, ctx: PipelineContext) -> None:
+        """Run the DesignAgent to produce a topic-specific DesignSpec."""
+        detected = ctx.detected_context or {}
+        industry = detected.get("industry", "general")
+        theme = detected.get("theme", "deloitte")
+
+        logger.info(
+            "design_agent_input",
+            execution_id=ctx.execution_id,
+            topic=ctx.topic[:80],
+            industry=industry,
+            theme=theme,
+        )
+
+        spec = await self._design_agent.generate_design_spec(
+            topic=ctx.topic,
+            industry=industry,
+            theme=theme,
+            execution_id=ctx.execution_id,
+        )
+        ctx.design_spec = spec.to_dict()
+
+        logger.info(
+            "design_agent_output",
+            execution_id=ctx.execution_id,
+            palette=spec.palette_name,
+            primary=spec.primary_color,
+            accent=spec.accent_color,
+            motif=spec.motif,
+            font_header=spec.font_header,
         )
 
     async def _run_storyboarding(self, ctx: PipelineContext) -> None:
@@ -1059,6 +1101,7 @@ class PipelineOrchestrator:
             research_findings=ctx.research_findings or {},
             presentation_plan=ctx.presentation_plan or {},
             data_enrichment=ctx.enriched_data,
+            design_spec=ctx.design_spec,
             execution_id=ctx.execution_id,
         )
         ctx.optimized_prompt = prompt.to_dict()
@@ -1176,9 +1219,34 @@ class PipelineOrchestrator:
                             char_position=e2.pos if hasattr(e2, 'pos') else None,
                             content_length=len(extracted),
                         )
-                        raise ValueError(f"LLM response truncated at char {e.pos}. Increase max_tokens.")
+                        raise ValueError(f"LLM response truncated at char {e2.pos if hasattr(e2, 'pos') else '?'}. Increase max_tokens.")
             else:
                 raise ValueError(f"LLM did not return valid JSON: {cleaned[:200]}")
+
+        # Normalize: handle cases where LLM wraps slides under a nested key
+        # e.g. {"presentation": {"slides": [...]}} or just a list
+        if isinstance(slide_json, list):
+            # LLM returned a bare array — wrap it
+            slide_json = {"schema_version": "1.0.0", "slides": slide_json, "total_slides": len(slide_json)}
+        elif isinstance(slide_json, dict):
+            if "slides" not in slide_json:
+                # Search one level deep for a slides array
+                for key, val in slide_json.items():
+                    if isinstance(val, dict) and "slides" in val:
+                        logger.warning("llm_output_slides_nested", outer_key=key)
+                        slide_json = val
+                        break
+                    elif isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and "type" in val[0]:
+                        logger.warning("llm_output_slides_as_value", key=key)
+                        slide_json = {"schema_version": "1.0.0", "slides": val, "total_slides": len(val)}
+                        break
+            # Ensure required top-level fields
+            if "slides" not in slide_json:
+                slide_json["slides"] = []
+            if "schema_version" not in slide_json:
+                slide_json["schema_version"] = "1.0.0"
+            if "total_slides" not in slide_json:
+                slide_json["total_slides"] = len(slide_json.get("slides", []))
 
         ctx.raw_llm_output = slide_json
         
@@ -1296,6 +1364,7 @@ class PipelineOrchestrator:
         """Write the agent's output slice to agent_states."""
         output_map: Dict[AgentName, Optional[Dict[str, Any]]] = {
             AgentName.INDUSTRY_CLASSIFIER: ctx.detected_context,
+            AgentName.DESIGN: ctx.design_spec,
             AgentName.STORYBOARDING: ctx.presentation_plan,
             AgentName.RESEARCH: ctx.research_findings,
             AgentName.DATA_ENRICHMENT: ctx.enriched_data,
@@ -1364,6 +1433,7 @@ class PipelineOrchestrator:
                 inferred_audience=detected.get("target_audience"),
                 selected_theme=detected.get("theme"),
                 compliance_context=detected.get("compliance_context"),
+                design_spec=ctx.design_spec,
             )
             if resolved_template_id:
                 import uuid as _uuid
@@ -1414,7 +1484,7 @@ class PipelineOrchestrator:
                 from app.agents.prompt_engineering import PromptEngineeringAgent
 
                 _industry = detected.get("industry", "general")
-                _theme = detected.get("theme", "mckinsey")
+                _theme = detected.get("theme", "deloitte")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION
