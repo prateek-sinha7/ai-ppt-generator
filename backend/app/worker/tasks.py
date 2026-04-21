@@ -486,7 +486,7 @@ def export_pptx_task(
             )
 
         slides_data = presentation.slides or []
-        theme = presentation.selected_theme or "deloitte"
+        theme = presentation.selected_theme or "dark_modern"
         design_spec = presentation.design_spec or {}
 
         # Build PPTX via Node.js pptx-service (Claude-quality rendering)

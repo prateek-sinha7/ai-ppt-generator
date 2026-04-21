@@ -244,7 +244,7 @@ async def trigger_pptx_export(
         )
 
     slides_data = presentation.slides or []
-    theme = presentation.selected_theme or "deloitte"
+    theme = presentation.selected_theme or "dark_modern"
     design_spec = presentation.design_spec or {}
 
     # Build PPTX bytes — run in thread pool to avoid blocking the async event loop
@@ -306,7 +306,7 @@ async def get_pptx_preview_images(
     slides_data = presentation.slides or []
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
-    theme = presentation.selected_theme or "deloitte"
+    theme = presentation.selected_theme or "dark_modern"
     design_spec = presentation.design_spec or {}
 
     logger.info(
@@ -450,7 +450,7 @@ async def download_pptx(
         )
 
     slides_data = presentation.slides or []
-    theme = presentation.selected_theme or "deloitte"
+    theme = presentation.selected_theme or "dark_modern"
     design_spec = presentation.design_spec or {}
 
     import asyncio
@@ -541,7 +541,7 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
 
-    html_content = _build_preview_html(slides_data, presentation.selected_theme or "deloitte")
+    html_content = _build_preview_html(slides_data, presentation.selected_theme or "dark_modern")
 
     pdf_bytes: Optional[bytes] = None
 

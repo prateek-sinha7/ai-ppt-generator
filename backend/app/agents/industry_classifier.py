@@ -465,21 +465,41 @@ Return your classification as JSON."""
     
     def _select_theme(self, industry: str, audience: str) -> str:
         """
-        Select presentation theme based on industry and audience
-        
+        Select presentation theme based on industry and audience.
+
+        Priority: dark_modern is the default. Agent selects the best fit:
+        - dark_modern: tech, fintech, data-heavy, technical audiences (default)
+        - mckinsey:    strategy, consulting, executive C-suite presentations
+        - deloitte:    finance, professional services, analyst audiences
+
         Returns:
-            Theme name: "deloitte" or "dark_modern"
+            Theme name: "dark_modern" | "mckinsey" | "deloitte"
         """
-        # Executive audiences get Deloitte theme
-        if audience == "executives":
-            return "deloitte"
-        
-        # Technical audiences get Dark Modern theme
+        # Technical audiences → dark modern
         if audience == "technical":
             return "dark_modern"
-        
-        # Default to Deloitte theme
-        return "deloitte"
+
+        # Executive / C-suite strategy content → McKinsey
+        if audience == "executives":
+            if industry in ("consulting", "strategy", "general"):
+                return "mckinsey"
+            return "dark_modern"
+
+        # Analyst / finance audiences → Deloitte
+        if audience == "analysts":
+            if industry in ("finance", "insurance", "healthcare"):
+                return "deloitte"
+
+        # Industry-based selection for remaining cases
+        if industry in ("technology", "fintech", "automotive"):
+            return "dark_modern"
+        if industry in ("finance", "insurance"):
+            return "deloitte"
+        if industry in ("consulting", "strategy"):
+            return "mckinsey"
+
+        # Default: dark_modern
+        return "dark_modern"
     
     async def classify(
         self,

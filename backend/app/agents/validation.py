@@ -1393,15 +1393,16 @@ class ValidationAgent:
                     inferred_type = "metric"
             
             # Rule 6: Title contains keywords suggesting chart/table
+            # Only applies to slides after the first
             title_lower = slide.get("title", "").lower()
-            if original_type == "content" and not content.get("chart_data"):
+            if i > 0 and original_type == "content" and not content.get("chart_data"):
                 if any(keyword in title_lower for keyword in ["chart", "graph", "trend", "growth", "rate", "comparison", "vs", "versus"]):
                     # Check if there's numeric data in bullets that could be charted
                     bullets = content.get("bullets", [])
                     if bullets and any(any(char.isdigit() for char in str(b)) for b in bullets):
                         inferred_type = "chart"
             
-            if original_type == "content" and not content.get("table_data"):
+            if i > 0 and original_type == "content" and not content.get("table_data"):
                 if any(keyword in title_lower for keyword in ["table", "matrix", "breakdown", "kpi", "metrics", "performance indicators"]):
                     inferred_type = "table"
             

@@ -517,7 +517,7 @@ class PipelineOrchestrator:
             # we can attempt a cache lookup immediately.
             if ctx.detected_context:
                 _industry = ctx.detected_context.get("industry", "general")
-                _theme = ctx.detected_context.get("theme", "deloitte")
+                _theme = ctx.detected_context.get("theme", "dark_modern")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION
@@ -871,7 +871,7 @@ class PipelineOrchestrator:
         """Run the DesignAgent to produce a topic-specific DesignSpec."""
         detected = ctx.detected_context or {}
         industry = detected.get("industry", "general")
-        theme = detected.get("theme", "deloitte")
+        theme = detected.get("theme", "dark_modern")
 
         logger.info(
             "design_agent_input",
@@ -1484,7 +1484,7 @@ class PipelineOrchestrator:
                 from app.agents.prompt_engineering import PromptEngineeringAgent
 
                 _industry = detected.get("industry", "general")
-                _theme = detected.get("theme", "deloitte")
+                _theme = detected.get("theme", "dark_modern")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION
