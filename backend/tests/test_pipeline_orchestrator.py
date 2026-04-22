@@ -100,6 +100,7 @@ class TestPipelineSequence:
             AgentName.PROMPT_ENGINEERING,
             AgentName.LLM_PROVIDER,
             AgentName.VALIDATION,
+            AgentName.VISUAL_REFINEMENT,  # NEW - Post-validation visual polish
             AgentName.QUALITY_SCORING,
         ]
         assert PIPELINE_SEQUENCE == expected
@@ -312,10 +313,11 @@ class TestCheckpointRecovery:
                 resume_from_checkpoint=True,
             )
 
-        # Only the remaining 3 agents should have been dispatched
+        # Only the remaining 4 agents should have been dispatched
         assert dispatched == [
             AgentName.LLM_PROVIDER,
             AgentName.VALIDATION,
+            AgentName.VISUAL_REFINEMENT,  # NEW - Post-validation visual polish
             AgentName.QUALITY_SCORING,
         ]
 

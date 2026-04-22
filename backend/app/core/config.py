@@ -61,5 +61,11 @@ class Settings(BaseSettings):
     # PPTX Service (Node.js pptxgenjs microservice)
     PPTX_SERVICE_URL: str = "http://pptx-service:3001"
 
+    # Phase 5 Optimizations (Cost Reduction)
+    ENABLE_PHASE5_OPTIMIZATIONS: bool = True
+    ENABLE_LLM_CACHING: bool = True
+    ENABLE_BATCH_PROCESSING: bool = True
+    ENABLE_SELECTIVE_ENHANCEMENT: bool = True
+
 
 settings = Settings()

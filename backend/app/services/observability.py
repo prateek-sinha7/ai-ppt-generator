@@ -34,10 +34,10 @@ logger = structlog.get_logger(__name__)
 AGENT_LATENCY_BUDGETS: Dict[str, float] = {
     "industry_classifier": 15.0,
     "storyboarding": 10.0,
-    "research": 30.0,
+    "research": 60.0,  # Increased from 30s - LLM call can be slow for complex topics
     "data_enrichment": 20.0,
     "prompt_engineering": 5.0,
-    "llm_provider": 40.0,
+    "llm_provider": 300.0,  # Increased to 5 minutes to handle large presentation generation
     "validation": 5.0,
     "quality_scoring": 10.0,
 }

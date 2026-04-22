@@ -185,17 +185,22 @@ async function buildTitle(s, slide, C) {
       align:"center", valign:"middle", margin:0,
     });
   } else {
-    // Regular title slide
+    // Regular title slide - adjust height based on title length
+    const titleHeight = titleWordCount > 10 ? 2.2 : 1.8;
     const fontSize = titleWordCount > 10 ? 28 : 32;
+    const titleY = 1.0;
     s.addText(titleText, {
-      x:0.45, y:1.0, w:6.8, h:1.8,
+      x:0.45, y:titleY, w:6.8, h:titleHeight,
       fontSize, bold:true, color:"FFFFFF",
       fontFace:C.fontHeader, charSpacing:titleWordCount > 10 ? 1 : 3,
       margin:0, valign:"top",
     });
+    
+    // Calculate subtitle position based on title end + margin
+    var subtitleY = titleY + titleHeight + 0.15; // 0.15 inch margin below title
   }
 
-  // Subtitle - centered for Thank You slide
+  // Subtitle - centered for Thank You slide, positioned below title for regular slides
   if (subtitle) {
     if (isThankYou) {
       s.addText(subtitle, {
@@ -204,15 +209,20 @@ async function buildTitle(s, slide, C) {
         align:"center", valign:"middle", margin:0,
       });
     } else {
+      // Position subtitle below title with proper spacing
       s.addText(subtitle, {
-        x:0.45, y:2.9, w:6.8, h:0.5,
+        x:0.45, y:subtitleY, w:6.8, h:0.5,
         fontSize:16, color:C.teal, fontFace:C.fontBody, italic:true, margin:0,
       });
     }
   }
 
-  // Thin divider - only for non-Thank You slides
-  if (!isThankYou) {
+  // Thin divider - only for non-Thank You slides, positioned below subtitle
+  if (!isThankYou && subtitle) {
+    const dividerY = subtitleY + 0.55; // Below subtitle
+    s.addShape("rect", { x:0.45, y:dividerY, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
+  } else if (!isThankYou) {
+    // No subtitle, use default position
     s.addShape("rect", { x:0.45, y:3.5, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
   }
 
@@ -301,7 +311,9 @@ async function buildContent(s, slide, C, isDark) {
       fontSize:13, bold:true, color:C.teal,
       align:"center", valign:"middle", fontFace:C.fontHeader, margin:0,
     });
-    s.addText(bullet, {
+    // Handle bullet as string or object with text field
+    const bulletText = typeof bullet === 'string' ? bullet : (bullet?.text || String(bullet));
+    s.addText(bulletText, {
       x:1.0, y:by+0.08, w:contentW-0.68, h:0.62,
       fontSize:11.5, color:textColor, fontFace:C.fontBody, valign:"middle", margin:0,
     });
@@ -469,8 +481,13 @@ async function buildTable(s, slide, C) {
     const hasBullets = bullets.length > 0;
     const tableW = hasBullets ? W * 0.62 : W - 0.8;
     const tableY = 0.92;
-    const tableH = H - tableY - (highlight ? 0.95 : 0.3);
+    // Reserve more space at bottom for highlight text: 0.82 (position) + 0.68 (height) + 0.3 (margin) = 1.8
+    const tableH = H - tableY - (highlight ? 1.8 : 0.3);
     const colW   = tableW / headers.length;
+    
+    // Limit rows to prevent overflow - max 6 rows when highlight exists, 8 otherwise
+    const maxRows = highlight ? 6 : 8;
+    const limitedRows = rows.slice(0, maxRows);
 
     const headerRow = headers.map(h => ({
       text: String(h),
@@ -482,7 +499,7 @@ async function buildTable(s, slide, C) {
       },
     }));
 
-    const dataRows = rows.map((row, ri) =>
+    const dataRows = limitedRows.map((row, ri) =>
       (Array.isArray(row) ? row : [row]).map(cell => ({
         text: String(cell ?? ""),
         options: {
@@ -505,7 +522,8 @@ async function buildTable(s, slide, C) {
       const rw = W - rx - 0.25;
       bullets.slice(0, 5).forEach((b, i) => {
         const by = tableY + i * 0.82;
-        if (by + 0.72 > H - (highlight ? 1.0 : 0.25)) return;
+        // Stop rendering bullets if they would overlap with highlight text
+        if (by + 0.72 > H - (highlight ? 1.8 : 0.25)) return;
         s.addShape("rect", {
           x:rx, y:by, w:rw, h:0.72,
           fill:{color:"FFFFFF"}, line:{color:"E2E8F0", width:0.5},
@@ -542,6 +560,8 @@ async function buildComparison(s, slide, C) {
   const comp    = content.comparison_data || {};
   const highlight = content.highlight_text || null;
 
+  console.log(`[DEBUG] Comparison slide data:`, JSON.stringify(comp, null, 2));
+
   let leftH = "", rightH = "", leftItems = [], rightItems = [];
   if (comp.left_column) {
     leftH = comp.left_column.heading || comp.left_column.title || "";
@@ -557,6 +577,9 @@ async function buildComparison(s, slide, C) {
     rightH = comp.right_title || "Option B";
     rightItems = comp.right || [];
   }
+
+  console.log(`[DEBUG] Extracted leftItems:`, JSON.stringify(leftItems));
+  console.log(`[DEBUG] Extracted rightItems:`, JSON.stringify(rightItems));
 
   addSectionHeader(s, null, C);
   s.addText(slide.title || "", {
@@ -589,9 +612,12 @@ async function buildComparison(s, slide, C) {
       x:0.35, y:iy, w:colW-0.1, h:0.6,
       fill:{color:"F8FAFC"}, line:{color:"E2E8F0", width:0.5},
     });
+    // Handle item as string or object with text field
+    const itemText = typeof item === 'string' ? item : (item?.text || JSON.stringify(item));
+    console.log(`[DEBUG] Left item ${i}: type=${typeof item}, value=${JSON.stringify(item)}, extracted=${itemText}`);
     s.addText([
       { text:"›  ", options:{color:C.navy, bold:true} },
-      { text:String(item), options:{color:C.navy} },
+      { text:itemText, options:{color:C.navy} },
     ], {
       x:0.42, y:iy+0.05, w:colW-0.24, h:0.5,
       fontSize:10.5, fontFace:C.fontBody, valign:"middle", margin:0,
@@ -619,9 +645,12 @@ async function buildComparison(s, slide, C) {
       x:rx+0.05, y:iy, w:colW-0.1, h:0.6,
       fill:{color:"F8FAFC"}, line:{color:"E2E8F0", width:0.5},
     });
+    // Handle item as string or object with text field
+    const itemText = typeof item === 'string' ? item : (item?.text || JSON.stringify(item));
+    console.log(`[DEBUG] Right item ${i}: type=${typeof item}, value=${JSON.stringify(item)}, extracted=${itemText}`);
     s.addText([
       { text:"›  ", options:{color:C.teal, bold:true} },
-      { text:String(item), options:{color:C.navy} },
+      { text:itemText, options:{color:C.navy} },
     ], {
       x:rx+0.12, y:iy+0.05, w:colW-0.24, h:0.5,
       fontSize:10.5, fontFace:C.fontBody, valign:"middle", margin:0,

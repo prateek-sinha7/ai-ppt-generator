@@ -7,6 +7,7 @@ Implements:
 - Dynamic font size adjustment within readability limits
 - Design Intelligence Layer layout scoring algorithm
 - layout_instructions generation in Slide_JSON using design token names
+- LLM-powered visual hierarchy optimization (Phase 4)
 
 References: Req 14, 15, 18, 62 | Design: Design Intelligence Layer
 """
@@ -18,6 +19,9 @@ from enum import Enum
 from typing import Any
 
 import structlog
+from pydantic import BaseModel, Field
+
+from app.agents.llm_helpers import LLMEnhancementHelper
 
 logger = structlog.get_logger(__name__)
 
@@ -47,6 +51,29 @@ DEFAULT_PADDING_TOKEN: str = "6"   # 24px — 3 grid units
 COMPACT_PADDING_TOKEN: str = "4"   # 16px — 2 grid units
 DEFAULT_GAP_TOKEN: str = "4"       # 16px
 COMPACT_GAP_TOKEN: str = "2"       # 8px
+
+
+# ---------------------------------------------------------------------------
+# LLM Output Models for Phase 4
+# ---------------------------------------------------------------------------
+
+class VisualHierarchyOptimization(BaseModel):
+    """LLM-generated visual hierarchy optimization."""
+    primary_element: str = Field(
+        description="The most important content element (e.g., 'title', 'bullet_1', 'chart', 'highlight_text')"
+    )
+    secondary_elements: list[str] = Field(
+        default_factory=list,
+        description="Supporting elements in order of importance"
+    )
+    emphasis_recommendations: dict[str, str] = Field(
+        default_factory=dict,
+        description="Element-specific emphasis recommendations (e.g., {'title': 'increase_size', 'bullet_2': 'bold'})"
+    )
+    layout_adjustments: dict[str, str] = Field(
+        default_factory=dict,
+        description="Layout token adjustments (e.g., {'title_font_size': 'slide-title', 'padding': '8'})"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -610,6 +637,132 @@ def apply_layout_to_presentation(
 
 
 # ---------------------------------------------------------------------------
+# 23.6 — LLM-Powered Visual Hierarchy Optimization (Phase 4)
+# ---------------------------------------------------------------------------
+
+class VisualHierarchyOptimizer(LLMEnhancementHelper):
+    """
+    Phase 4 Enhancement: Use LLM to optimize visual hierarchy.
+    
+    Determines which content elements deserve visual emphasis based on
+    semantic importance, not just formula-based rules.
+    """
+    
+    async def optimize_visual_hierarchy_with_llm(
+        self,
+        slide: dict[str, Any],
+        execution_id: str,
+    ) -> dict[str, Any]:
+        """
+        Use LLM to determine which content elements deserve visual emphasis.
+        
+        Phase 4 Enhancement: Goes beyond formula-based layout to understand
+        semantic importance and adjust visual hierarchy accordingly.
+        
+        Args:
+            slide: Slide dictionary
+            execution_id: Execution ID for tracing
+            
+        Returns:
+            Optimized layout_instructions dict with emphasis adjustments
+        """
+        logger.info(
+            "visual_hierarchy_optimization_started",
+            execution_id=execution_id,
+            slide_id=slide.get("slide_id"),
+        )
+        
+        # Extract slide content for LLM analysis
+        title = slide.get("title", "")
+        slide_type = slide.get("type", "content")
+        content = slide.get("content", {})
+        bullets = content.get("bullets", [])
+        highlight_text = content.get("highlight_text", "")
+        icon_name = content.get("icon_name", "")
+        has_chart = bool(content.get("chart_data"))
+        has_table = bool(content.get("table_data"))
+        
+        # Build content summary
+        content_elements = [f"Title: {title}"]
+        for i, bullet in enumerate(bullets, 1):
+            content_elements.append(f"Bullet {i}: {bullet}")
+        if highlight_text:
+            content_elements.append(f"Highlight: {highlight_text}")
+        if has_chart:
+            chart_type = content.get("chart_type", "unknown")
+            content_elements.append(f"Chart: {chart_type}")
+        if has_table:
+            content_elements.append("Table: present")
+        if icon_name:
+            content_elements.append(f"Icon: {icon_name}")
+        
+        system_prompt = """You are a visual design expert specializing in presentation hierarchy.
+Your task is to determine which content elements deserve the most visual emphasis based on semantic importance.
+
+Consider:
+1. What is the key message of this slide?
+2. Which elements support that message most directly?
+3. What should the audience look at first, second, third?
+4. How can layout tokens (font size, padding, spacing) create emphasis?
+
+Available font size tokens (largest to smallest): slide-title, slide-subtitle, slide-body, slide-caption
+Available spacing tokens: 0, 1, 2, 4, 6, 8, 10, 12, 16, 20, 24
+
+Be strategic: not everything can be emphasized. Choose 1-2 primary elements."""
+
+        user_prompt = f"""Analyze this slide and determine optimal visual hierarchy.
+
+SLIDE TYPE: {slide_type}
+
+CONTENT ELEMENTS:
+{chr(10).join(content_elements)}
+
+Determine:
+1. primary_element: The single most important element
+2. secondary_elements: Supporting elements in order of importance
+3. emphasis_recommendations: How to emphasize each element (e.g., increase_size, bold, color)
+4. layout_adjustments: Specific token adjustments (e.g., {{"title_font_size": "slide-title", "padding": "8"}})
+
+Return JSON only."""
+
+        try:
+            result = await self.call_llm_with_retry(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                pydantic_model=VisualHierarchyOptimization,
+                execution_id=execution_id,
+            )
+            
+            logger.info(
+                "visual_hierarchy_optimization_success",
+                execution_id=execution_id,
+                slide_id=slide.get("slide_id"),
+                primary_element=result.get("primary_element"),
+                adjustment_count=len(result.get("layout_adjustments", {})),
+            )
+            
+            # Apply layout adjustments to slide's layout_instructions
+            current_instructions = slide.get("layout_instructions", {})
+            optimized_instructions = {**current_instructions, **result.get("layout_adjustments", {})}
+            
+            return optimized_instructions
+            
+        except Exception as e:
+            logger.warning(
+                "visual_hierarchy_optimization_failed_graceful_degradation",
+                execution_id=execution_id,
+                slide_id=slide.get("slide_id"),
+                error=str(e),
+            )
+            # Graceful degradation: return current instructions unchanged
+            return slide.get("layout_instructions", {})
+
+
+# Global optimizer instance
+visual_hierarchy_optimizer = VisualHierarchyOptimizer()
+
+
+# ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
@@ -672,6 +825,26 @@ class LayoutDecisionEngine:
     ) -> list[dict[str, Any]]:
         """Apply layout decisions to all slides."""
         return apply_layout_to_presentation(slides, theme)
+    
+    async def optimize_visual_hierarchy(
+        self,
+        slide: dict[str, Any],
+        execution_id: str,
+    ) -> dict[str, str]:
+        """
+        Phase 4: Optimize visual hierarchy using LLM.
+        
+        Args:
+            slide: Slide dictionary
+            execution_id: Execution ID for tracing
+            
+        Returns:
+            Optimized layout_instructions dict
+        """
+        return await visual_hierarchy_optimizer.optimize_visual_hierarchy_with_llm(
+            slide=slide,
+            execution_id=execution_id,
+        )
 
 
 layout_engine = LayoutDecisionEngine()

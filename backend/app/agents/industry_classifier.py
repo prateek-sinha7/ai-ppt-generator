@@ -56,6 +56,11 @@ INDUSTRY_SEED_TERMS = {
         "fintech", "trading", "hedge fund", "asset management", "finance",
         "financial", "bank", "credit", "loan", "mortgage", "capital"
     ],
+    "fintech": [
+        "fintech", "blockchain", "cryptocurrency", "digital wallet", "payment",
+        "neobank", "peer-to-peer", "P2P", "digital currency", "crypto",
+        "DeFi", "decentralized finance", "smart contract", "token"
+    ],
     "technology": [
         "software", "SaaS", "cloud", "API", "platform", "startup",
         "AI", "machine learning", "cybersecurity", "DevOps", "technology",
@@ -481,9 +486,11 @@ Return your classification as JSON."""
 
         # Executive / C-suite strategy content → McKinsey
         if audience == "executives":
-            if industry in ("consulting", "strategy", "general"):
-                return "mckinsey"
-            return "dark_modern"
+            # For executives, prefer McKinsey for most industries except pure tech
+            if industry in ("technology", "fintech"):
+                return "dark_modern"
+            # All other industries with executive audience get McKinsey
+            return "mckinsey"
 
         # Analyst / finance audiences → Deloitte
         if audience == "analysts":
@@ -491,7 +498,7 @@ Return your classification as JSON."""
                 return "deloitte"
 
         # Industry-based selection for remaining cases
-        if industry in ("technology", "fintech", "automotive"):
+        if industry in ("technology", "fintech", "automobile"):
             return "dark_modern"
         if industry in ("finance", "insurance"):
             return "deloitte"

@@ -91,13 +91,7 @@ SLIDE TYPES AND REQUIREMENTS:
 - "content": 2-4 concise bullets with specific data. Include icon_name and highlight_text
 - "chart": MUST specify chart_type as one of: "bar", "line", "pie", "scatter", "area". Use 6-8 data points with real values. Include bullets with 3-4 analytical insights on the left panel
 - "table": 4-6 rows, 3-5 columns. Use real comparative data. Include highlight_text
-- "comparison": **CRITICAL** MUST include comparison_data with left_column and right_column, each containing heading and 4-5 specific bullets. This is a REQUIRED structure - do NOT skip or simplify. Example:
-  {
-    "comparison_data": {
-      "left_column": {"heading": "Traditional Approach", "bullets": ["Specific point 1 with data", "Specific point 2 with metrics", ...]},
-      "right_column": {"heading": "New Approach", "bullets": ["Contrasting point 1 with data", "Contrasting point 2 with metrics", ...]}
-    }
-  }
+- "comparison": 4-5 bullets per column with specific, contrasting data points
 - "metric": Large KPI with trend, label, and 4 context bullets with supporting data
 
 CHART VARIETY — Do NOT use only bar charts. Vary chart types:
@@ -125,7 +119,7 @@ Follow the presentation plan EXACTLY:
 CRITICAL DATA REQUIREMENTS:
 - chart slides: chart_data MUST be array of {label, value} with REAL industry numbers from data_enrichment. NEVER use "Category 1, 2, 3"
 - table slides: table_data MUST have real headers and rows with actual data values
-- comparison slides: **MANDATORY** comparison_data MUST have left_column and right_column objects, each with heading (string) and bullets (array of 4-5 strings). DO NOT generate comparison slides without this complete structure. This is the MOST IMPORTANT requirement.
+- comparison slides: comparison_data MUST have specific, contrasting bullet points
 - metric slides: metric_value, metric_label, metric_trend MUST all be populated
 
 Return ONLY valid JSON. No markdown, no explanation.
@@ -276,7 +270,7 @@ ABSOLUTE RULES:
 - title at slide ROOT level, NEVER inside content
 - chart_data: array of {label, value} with REAL numbers — NEVER "Category 1, 2, 3"
 - chart_type: VARY across slides — use "bar", "line", "pie", "area" appropriately
-- bullets: 2-4 per content slide, each 6-8 words with specific data
+- bullets: 5-7 per content slide, each 10-20 words with specific data
 - table rows: 4-6 rows with real comparative data
 - EVERY slide needs speaker_notes (3-4 sentences)
 - EVERY content/metric slide needs icon_name and highlight_text
@@ -295,7 +289,7 @@ Generate a COMPLETE, INFORMATION-DENSE presentation following the provided struc
 
 CONTENT DENSITY REQUIREMENTS:
 - Titles: 6-10 words, action-oriented (e.g. "Revenue Growth Accelerates Across All Segments")
-- Bullets: 2-4 per content slide, each 6-8 words with specific data points, percentages, dollar amounts
+- Bullets: 5-7 per content slide, each 10-20 words with specific data points, percentages, dollar amounts
 - NO vague statements — every bullet must contain a specific fact, metric, or insight
 - Charts: 5-8 data points with real industry-specific values
 - Tables: 4-6 rows, 3-5 columns with real comparative data
@@ -434,7 +428,7 @@ ABSOLUTE RULES:
 - title at slide ROOT level, NEVER inside content
 - chart_data: array of {label, value} with REAL numbers — NEVER "Category 1, 2, 3"
 - chart_type: VARY across slides — use "bar", "line", "pie", "area" appropriately
-- bullets: 2-4 per content slide, each 6-8 words with specific data
+- bullets: 5-7 per content slide, each 10-20 words with specific data
 - table rows: 4-6 rows with real comparative data
 - EVERY slide needs speaker_notes (3-4 sentences)
 - EVERY content/metric slide needs icon_name and highlight_text

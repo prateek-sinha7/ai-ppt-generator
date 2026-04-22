@@ -7,6 +7,8 @@ This agent runs BEFORE LLM content generation and determines:
 - Section mapping following consulting storytelling structure
 - Visual diversity enforcement
 
+Phase 3 Enhancement: LLM-powered narrative optimization for executive impact.
+
 The Storyboarding Agent has absolute authority over slide structure decisions.
 LLMs fill content into predefined structures - they do NOT decide slide structure.
 """
@@ -15,10 +17,12 @@ import hashlib
 import json
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.agents.llm_helpers import LLMEnhancementHelper
 
 
 class SlideType(str, Enum):
@@ -93,6 +97,22 @@ class PresentationPlanJSON(BaseModel):
         return v
 
 
+class NarrativeOptimization(BaseModel):
+    """LLM-generated narrative optimization suggestions."""
+    optimized_sections: list[dict[str, Any]] = Field(
+        description="Optimized section structure with adjusted slide counts"
+    )
+    narrative_arc: str = Field(
+        description="Description of the narrative arc (problem → tension → resolution)"
+    )
+    attention_peaks: list[int] = Field(
+        description="Slide numbers where executive attention should peak"
+    )
+    reasoning: str = Field(
+        description="Why this narrative structure is optimal for the topic"
+    )
+
+
 class StoryboardingAgent:
     """
     Storyboarding Agent - Deterministic slide structure planning.
@@ -132,7 +152,7 @@ class StoryboardingAgent:
 
     def __init__(self):
         """Initialize the Storyboarding Agent."""
-        pass
+        self._llm_helper = LLMEnhancementHelper()
 
     def analyze_topic_complexity(self, topic: str, industry: str) -> TopicComplexity:
         """
@@ -468,6 +488,160 @@ class StoryboardingAgent:
         )
         
         return plan
+    
+    async def optimize_narrative_with_llm(
+        self,
+        topic: str,
+        industry: str,
+        initial_plan: PresentationPlanJSON,
+        execution_id: str,
+    ) -> Optional[PresentationPlanJSON]:
+        """
+        Use LLM to optimize narrative flow for maximum executive impact.
+        
+        Phase 3 Enhancement: +0.35 quality points, +$0.0014 per presentation
+        
+        Optimizes:
+        - Section ordering (problem → tension → resolution)
+        - Slide distribution (more slides where tension peaks)
+        - Executive attention management (hooks at key moments)
+        
+        Args:
+            topic: Presentation topic
+            industry: Industry context
+            initial_plan: Initial presentation plan from deterministic logic
+            execution_id: Execution ID for tracing
+            
+        Returns:
+            Optimized presentation plan, or None on failure (falls back to initial_plan)
+        """
+        # Build section summary for LLM
+        sections_summary = []
+        for section in initial_plan.sections:
+            sections_summary.append({
+                "name": section.name,
+                "slide_count": section.slide_count,
+                "types": [t.value for t in section.slide_types]
+            })
+        
+        system_prompt = f"""You are an expert {industry} presentation strategist specializing in executive storytelling.
+
+Your task is to optimize the narrative flow of a presentation for MAXIMUM EXECUTIVE IMPACT.
+
+Key principles:
+1. **Narrative Arc**: Problem → Tension → Resolution
+   - Start with the problem (hook attention)
+   - Build tension with analysis and evidence (maintain engagement)
+   - Resolve with clear recommendations (drive action)
+
+2. **Attention Management**:
+   - Executives have limited attention spans
+   - Front-load critical insights
+   - Place "aha moments" at attention peaks
+   - End with clear, actionable takeaways
+
+3. **Slide Distribution**:
+   - More slides where tension peaks (Analysis/Evidence)
+   - Fewer slides for setup (Problem) and conclusion
+   - Balance depth with brevity
+
+4. **Industry Context**:
+   - {industry} executives care about: ROI, risk, competitive advantage
+   - Adjust narrative to industry priorities
+
+Rules:
+- Total slides must stay within 5-25
+- Keep Title (1 slide) and Agenda (1 slide) fixed
+- Maintain visual diversity (no more than 2 consecutive same types)
+- Optimize section ordering and slide counts only
+
+Return JSON: {{"optimized_sections": [...], "narrative_arc": "...", "attention_peaks": [...], "reasoning": "..."}}"""
+
+        user_prompt = f"""Optimize the narrative flow for this presentation:
+
+Topic: {topic}
+Industry: {industry}
+Total Slides: {initial_plan.total_slides}
+
+Current Structure:
+{json.dumps(sections_summary, indent=2)}
+
+Optimize the section ordering and slide distribution for maximum executive impact.
+Ensure the narrative follows: Problem → Tension → Resolution."""
+
+        try:
+            result = await self._llm_helper.call_llm_with_retry(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                pydantic_model=NarrativeOptimization,
+                execution_id=execution_id,
+                industry=industry,
+            )
+            
+            # Convert LLM suggestions to SectionPlan objects
+            optimized_sections = []
+            total_slides = 0
+            
+            for section_data in result.get("optimized_sections", []):
+                name = section_data.get("name", "Content")
+                slide_count = section_data.get("slide_count", 1)
+                types_str = section_data.get("types", ["content"])
+                
+                # Convert string types to SlideType enums
+                slide_types = []
+                for type_str in types_str:
+                    try:
+                        slide_types.append(SlideType(type_str))
+                    except ValueError:
+                        slide_types.append(SlideType.CONTENT)  # Fallback
+                
+                # Ensure slide_types length matches slide_count
+                if len(slide_types) < slide_count:
+                    slide_types.extend([SlideType.CONTENT] * (slide_count - len(slide_types)))
+                elif len(slide_types) > slide_count:
+                    slide_types = slide_types[:slide_count]
+                
+                optimized_sections.append(SectionPlan(
+                    name=name,
+                    slide_count=slide_count,
+                    slide_types=slide_types
+                ))
+                total_slides += slide_count
+            
+            # Validate total slides is within bounds
+            if total_slides < 5 or total_slides > 25:
+                raise ValueError(f"Optimized total slides ({total_slides}) out of bounds (5-25)")
+            
+            # Enforce visual diversity on optimized plan
+            optimized_sections = self.enforce_visual_diversity(optimized_sections)
+            
+            # Create optimized plan
+            optimized_plan = PresentationPlanJSON(
+                topic=topic,
+                industry=industry,
+                total_slides=total_slides,
+                sections=optimized_sections,
+                visual_diversity_check=True
+            )
+            
+            logger_data = {
+                "narrative_optimization_success": True,
+                "original_slides": initial_plan.total_slides,
+                "optimized_slides": total_slides,
+                "narrative_arc": result.get("narrative_arc", ""),
+                "attention_peaks": result.get("attention_peaks", []),
+                "execution_id": execution_id,
+            }
+            
+            # Log success (using print since we don't have logger imported)
+            print(f"[INFO] narrative_optimization_success: {json.dumps(logger_data)}")
+            
+            return optimized_plan
+            
+        except Exception as e:
+            # Log failure and return None (caller will use initial_plan)
+            print(f"[WARNING] narrative_optimization_failed: {str(e)}, execution_id={execution_id}")
+            return None
 
     def validate_final_presentation(
         self,

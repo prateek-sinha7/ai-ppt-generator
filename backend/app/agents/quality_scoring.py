@@ -13,6 +13,7 @@ The agent implements comprehensive quality scoring logic with:
 - Whitespace ratio and content density scoring
 - Narrative coherence validation against consulting storytelling structure
 - Improvement recommendations per dimension
+- LLM-powered specific, actionable recommendations (Phase 4)
 - Feedback_Loop trigger when score < 8
 """
 
@@ -25,6 +26,8 @@ from uuid import uuid4
 
 import structlog
 from pydantic import BaseModel, Field
+
+from app.agents.llm_helpers import LLMEnhancementHelper
 
 logger = structlog.get_logger(__name__)
 
@@ -144,10 +147,34 @@ class QualityScoreResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# LLM Output Models for Phase 4
+# ---------------------------------------------------------------------------
+
+class LLMRecommendations(BaseModel):
+    """LLM-generated specific, actionable recommendations."""
+    content_improvements: List[str] = Field(
+        default_factory=list,
+        description="Slide-specific content improvements with slide numbers"
+    )
+    visual_improvements: List[str] = Field(
+        default_factory=list,
+        description="Visual enhancements with specific icon/chart suggestions"
+    )
+    data_improvements: List[str] = Field(
+        default_factory=list,
+        description="Data quality improvements with specific examples"
+    )
+    priority_fixes: List[str] = Field(
+        default_factory=list,
+        description="Top 3-5 priority fixes ranked by impact"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Quality Scoring Agent
 # ---------------------------------------------------------------------------
 
-class QualityScoringAgent:
+class QualityScoringAgent(LLMEnhancementHelper):
     """
     Quality Scoring Agent - Multi-dimensional quality assessment.
     
@@ -159,11 +186,13 @@ class QualityScoringAgent:
     5. Score clarity (15% weight)
     6. Calculate composite weighted average
     7. Generate improvement recommendations
-    8. Trigger feedback loop if score < 8
+    8. Generate LLM-powered specific recommendations (Phase 4)
+    9. Trigger feedback loop if score < 8
     """
     
     def __init__(self):
         """Initialize the Quality Scoring Agent."""
+        super().__init__()
         self.dimension_weights = {
             ScoreDimension.CONTENT_DEPTH: WEIGHT_CONTENT_DEPTH,
             ScoreDimension.VISUAL_APPEAL: WEIGHT_VISUAL_APPEAL,
@@ -763,12 +792,133 @@ class QualityScoringAgent:
         
         return should_trigger
     
+    async def generate_llm_recommendations(
+        self,
+        slides: List[Dict[str, Any]],
+        dimension_scores: List[DimensionScore],
+        execution_id: str,
+    ) -> Dict[str, List[str]]:
+        """
+        Use LLM to generate SPECIFIC, ACTIONABLE recommendations.
+        
+        Phase 4 Enhancement: Goes beyond formula-based scoring to provide:
+        - Slide-specific improvements (e.g., "Slide 3: Add market share data")
+        - Content gaps (e.g., "Missing competitive analysis")
+        - Visual enhancements (e.g., "Slide 5: Icon should be 'Shield' not 'Users'")
+        
+        Args:
+            slides: List of slide dictionaries
+            dimension_scores: List of dimension scores with formula-based recommendations
+            execution_id: Execution ID for tracing
+            
+        Returns:
+            Dictionary with content_improvements, visual_improvements, data_improvements, priority_fixes
+        """
+        logger.info(
+            "llm_recommendations_started",
+            execution_id=execution_id,
+            slide_count=len(slides),
+        )
+        
+        # Build slide summary for LLM
+        slide_summaries = []
+        for i, slide in enumerate(slides, 1):
+            slide_type = self._get_slide_type(slide)
+            title = slide.get("title", "")
+            content = slide.get("content", {})
+            bullets = content.get("bullets", [])
+            has_chart = bool(content.get("chart_data"))
+            has_table = bool(content.get("table_data"))
+            icon = content.get("icon_name", "")
+            
+            summary = f"Slide {i} ({slide_type}): '{title}'"
+            if bullets:
+                summary += f" | {len(bullets)} bullets"
+            if has_chart:
+                chart_type = content.get("chart_type", "unknown")
+                summary += f" | Chart: {chart_type}"
+            if has_table:
+                summary += " | Table"
+            if icon:
+                summary += f" | Icon: {icon}"
+            
+            slide_summaries.append(summary)
+        
+        # Build dimension score summary
+        score_summary = []
+        for ds in dimension_scores:
+            score_summary.append(
+                f"{ds.dimension.value}: {ds.score:.1f}/10 - {', '.join(ds.recommendations) if ds.recommendations else 'No issues'}"
+            )
+        
+        system_prompt = """You are a presentation quality expert specializing in consulting-style presentations.
+Your task is to provide SPECIFIC, ACTIONABLE recommendations for improving presentation quality.
+
+Focus on:
+1. Slide-specific improvements with slide numbers
+2. Concrete examples (e.g., "Add market share data", not "improve content")
+3. Visual mismatches (e.g., wrong icon for the message)
+4. Data quality issues (e.g., generic labels like "Category 1, 2, 3")
+5. Priority ranking (what matters most)
+
+Be direct and specific. Every recommendation should reference a slide number and suggest a concrete action."""
+
+        user_prompt = f"""Analyze this presentation and provide specific improvement recommendations.
+
+SLIDE SUMMARY:
+{chr(10).join(slide_summaries)}
+
+DIMENSION SCORES:
+{chr(10).join(score_summary)}
+
+Provide recommendations in these categories:
+1. content_improvements: Slide-specific content gaps or improvements
+2. visual_improvements: Icon, chart type, or layout improvements
+3. data_improvements: Data quality issues (generic labels, missing benchmarks)
+4. priority_fixes: Top 3-5 most impactful fixes
+
+Return JSON only."""
+
+        try:
+            result = await self.call_llm_with_retry(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                pydantic_model=LLMRecommendations,
+                execution_id=execution_id,
+            )
+            
+            logger.info(
+                "llm_recommendations_success",
+                execution_id=execution_id,
+                content_count=len(result.get("content_improvements", [])),
+                visual_count=len(result.get("visual_improvements", [])),
+                data_count=len(result.get("data_improvements", [])),
+                priority_count=len(result.get("priority_fixes", [])),
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(
+                "llm_recommendations_failed_graceful_degradation",
+                execution_id=execution_id,
+                error=str(e),
+            )
+            # Graceful degradation: return formula-based recommendations
+            return {
+                "content_improvements": [],
+                "visual_improvements": [],
+                "data_improvements": [],
+                "priority_fixes": ["LLM recommendations unavailable - see dimension scores"],
+            }
+    
     def score_presentation(
         self,
         presentation_id: str,
         slides: List[Dict[str, Any]],
         execution_id: Optional[str] = None,
-        retry_count: int = 0
+        retry_count: int = 0,
+        use_llm_recommendations: bool = True,
     ) -> QualityScoreResult:
         """
         Main scoring method - evaluates presentation across all dimensions.
@@ -777,13 +927,15 @@ class QualityScoringAgent:
         1. Score all 5 dimensions
         2. Calculate composite weighted average
         3. Generate recommendations per dimension
-        4. Determine if feedback loop is needed
+        4. Optionally generate LLM-powered specific recommendations (Phase 4)
+        5. Determine if feedback loop is needed
         
         Args:
             presentation_id: Presentation ID
             slides: List of slide dictionaries
             execution_id: Optional execution ID for tracing
             retry_count: Current retry count for feedback loop
+            use_llm_recommendations: Whether to generate LLM recommendations (default True)
             
         Returns:
             Complete QualityScoreResult
@@ -793,7 +945,8 @@ class QualityScoringAgent:
             presentation_id=presentation_id,
             execution_id=execution_id,
             slide_count=len(slides),
-            retry_count=retry_count
+            retry_count=retry_count,
+            use_llm_recommendations=use_llm_recommendations,
         )
         
         # Score all dimensions
@@ -808,8 +961,31 @@ class QualityScoringAgent:
         # Calculate composite score
         composite_score = self.calculate_composite_score(dimension_scores)
         
-        # Generate recommendations
+        # Generate formula-based recommendations
         recommendations = self.generate_recommendations(dimension_scores)
+        
+        # Generate LLM-powered recommendations if enabled and execution_id provided
+        if use_llm_recommendations and execution_id:
+            import asyncio
+            try:
+                llm_recs = asyncio.run(
+                    self.generate_llm_recommendations(
+                        slides=slides,
+                        dimension_scores=dimension_scores,
+                        execution_id=execution_id,
+                    )
+                )
+                # Merge LLM recommendations into the recommendations dict
+                recommendations["llm_content_improvements"] = llm_recs.get("content_improvements", [])
+                recommendations["llm_visual_improvements"] = llm_recs.get("visual_improvements", [])
+                recommendations["llm_data_improvements"] = llm_recs.get("data_improvements", [])
+                recommendations["llm_priority_fixes"] = llm_recs.get("priority_fixes", [])
+            except Exception as e:
+                logger.warning(
+                    "llm_recommendations_skipped",
+                    execution_id=execution_id,
+                    error=str(e),
+                )
         
         # Determine if feedback loop is needed
         requires_feedback_loop = self.should_trigger_feedback_loop(
@@ -830,7 +1006,8 @@ class QualityScoringAgent:
             },
             "retry_count": retry_count,
             "max_retries": MAX_FEEDBACK_RETRIES,
-            "threshold": QUALITY_THRESHOLD_FEEDBACK_LOOP
+            "threshold": QUALITY_THRESHOLD_FEEDBACK_LOOP,
+            "llm_recommendations_used": use_llm_recommendations and execution_id is not None,
         }
         
         # Create result

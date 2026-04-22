@@ -110,6 +110,7 @@ THEME_INSTRUCTION_KEYS: frozenset = frozenset({
 # Content constraints
 MAX_TITLE_WORDS = 8
 MAX_BULLETS = 4
+MIN_BULLETS = 2  # Minimum bullets per content slide
 MAX_WORDS_PER_BULLET = 8
 MAX_CONTENT_DENSITY = 0.75
 MIN_WHITESPACE_RATIO = 0.25
@@ -319,22 +320,28 @@ class SlideContentParser:
         Truncate bullet point to maximum word count.
         
         Args:
-            bullet: Original bullet text
+            bullet: Original bullet text (string or dict with 'text' key)
             max_words: Maximum number of words (default: 8)
             
         Returns:
             Truncated bullet
         """
-        words = bullet.split()
+        # Handle both string bullets and dict bullets with 'text' key
+        if isinstance(bullet, dict):
+            bullet_text = bullet.get("text", str(bullet))
+        else:
+            bullet_text = str(bullet)
+        
+        words = bullet_text.split()
         if len(words) <= max_words:
-            return bullet
+            return bullet_text
         
         truncated = " ".join(words[:max_words])
         logger.info(
             "bullet_truncated",
             original_words=len(words),
             max_words=max_words,
-            original=bullet[:50],
+            original=bullet_text[:50],
             truncated=truncated
         )
         return truncated
@@ -500,9 +507,24 @@ class ValidationAgent:
             # ── Migrate table_data ──────────────────────────────────────────
             root_td = slide.pop("table_data", None)
             if root_td is not None and not content.get("table_data"):
-                content["table_data"] = root_td
-                corrections += 1
-                logger.debug("migrated_table_data_to_content", slide_number=i+1)
+                # Validate that table_data has proper structure
+                if isinstance(root_td, dict) and root_td.get("headers") and root_td.get("rows"):
+                    content["table_data"] = root_td
+                    corrections += 1
+                    logger.info(
+                        "migrated_table_data_to_content",
+                        slide_number=i+1,
+                        headers_count=len(root_td.get("headers", [])),
+                        rows_count=len(root_td.get("rows", []))
+                    )
+                else:
+                    logger.warning(
+                        "invalid_table_data_structure_ignored",
+                        slide_number=i+1,
+                        type=type(root_td).__name__,
+                        has_headers=bool(root_td.get("headers") if isinstance(root_td, dict) else False),
+                        has_rows=bool(root_td.get("rows") if isinstance(root_td, dict) else False)
+                    )
 
             # Migrate root-level "table" object → content.table_data
             root_table = slide.pop("table", None)
@@ -518,9 +540,25 @@ class ValidationAgent:
             # ── Migrate comparison_data ─────────────────────────────────────
             root_comp = slide.pop("comparison_data", None) or slide.pop("comparison", None)
             if root_comp and isinstance(root_comp, dict) and not content.get("comparison_data"):
-                content["comparison_data"] = root_comp
-                corrections += 1
-                logger.info("migrated_root_comparison_to_content", slide_number=i+1)
+                # Validate that comparison_data has proper structure
+                has_left = root_comp.get("left_column") or root_comp.get("left")
+                has_right = root_comp.get("right_column") or root_comp.get("right")
+                if has_left and has_right:
+                    content["comparison_data"] = root_comp
+                    corrections += 1
+                    logger.info(
+                        "migrated_root_comparison_to_content",
+                        slide_number=i+1,
+                        has_left_column=bool(root_comp.get("left_column")),
+                        has_right_column=bool(root_comp.get("right_column"))
+                    )
+                else:
+                    logger.warning(
+                        "invalid_comparison_data_structure_ignored",
+                        slide_number=i+1,
+                        has_left=bool(has_left),
+                        has_right=bool(has_right)
+                    )
 
             # ── Special case: kpi_badges → bullets (title slides) ──────────
             kpi = slide.pop("kpi_badges", None)
@@ -793,8 +831,21 @@ class ValidationAgent:
             # table_data at root → content.table_data
             root_td = slide.pop("table_data", None)
             if root_td is not None and not content.get("table_data"):
-                content["table_data"] = root_td
-                corrections += 1
+                # Validate structure before migrating
+                if isinstance(root_td, dict) and root_td.get("headers") and root_td.get("rows"):
+                    content["table_data"] = root_td
+                    corrections += 1
+                    logger.debug(
+                        "migrated_table_data_in_auto_correct",
+                        slide_number=i+1,
+                        headers=len(root_td.get("headers", [])),
+                        rows=len(root_td.get("rows", []))
+                    )
+                else:
+                    logger.warning(
+                        "skipped_invalid_table_data_in_auto_correct",
+                        slide_number=i+1
+                    )
 
             slide["content"] = content
             
@@ -834,7 +885,11 @@ class ValidationAgent:
                     bullets = content.get("bullets", [])
                     if bullets:
                         import random
-                        fallback = [{"label": b[:20], "value": round(random.uniform(30, 90), 1)} for b in bullets[:5]]
+                        fallback = []
+                        for b in bullets[:5]:
+                            # Handle both string bullets and dict bullets with 'text' key
+                            bullet_text = b.get("text", str(b)) if isinstance(b, dict) else str(b)
+                            fallback.append({"label": bullet_text[:20], "value": round(random.uniform(30, 90), 1)})
                     else:
                         fallback = [
                             {"label": "Category A", "value": 42.5},
@@ -860,7 +915,13 @@ class ValidationAgent:
                     if bullets:
                         fallback = {
                             "headers": ["Item", "Details"],
-                            "rows": [[b[:30], "—"] for b in bullets[:5]]
+                            "rows": [
+                                [
+                                    (b.get("text", str(b)) if isinstance(b, dict) else str(b))[:30],
+                                    "—"
+                                ]
+                                for b in bullets[:5]
+                            ]
                         }
                     else:
                         fallback = {
@@ -982,6 +1043,29 @@ class ValidationAgent:
                     content["subtitle"] = "Strategic Analysis for Senior Leadership"
                     corrections += 1
                     logger.info("generated_title_subtitle", slide_number=slide_num)
+                
+                # Limit title slide bullets to prevent overlap (max 4 KPI badges)
+                bullets = content.get("bullets", [])
+                if len(bullets) > 4:
+                    content["bullets"] = bullets[:4]
+                    corrections += 1
+                    logger.warning(
+                        "truncated_title_slide_bullets",
+                        slide_number=slide_num,
+                        original_count=len(bullets),
+                        truncated_to=4
+                    )
+                
+                # Ensure subtitle is not too long (max 60 characters)
+                subtitle = content.get("subtitle", "")
+                if len(subtitle) > 60:
+                    content["subtitle"] = subtitle[:57] + "..."
+                    corrections += 1
+                    logger.warning(
+                        "truncated_title_subtitle",
+                        slide_number=slide_num,
+                        original_length=len(subtitle)
+                    )
 
             elif slide_type == "content":
                 # Content slides must have bullets
@@ -1000,6 +1084,43 @@ class ValidationAgent:
                 # Ensure bullets is a list of strings
                 if isinstance(content.get("bullets"), list):
                     content["bullets"] = [str(b) for b in content["bullets"] if b]
+                
+                # CRITICAL: Enforce minimum bullet count (MIN_BULLETS = 2)
+                bullets = content.get("bullets", [])
+                original_count = len(bullets)
+                if original_count < MIN_BULLETS:
+                    title = slide.get("title", "")
+                    # Generate contextual bullets based on title
+                    title_words = title.split()
+                    
+                    # Generate additional bullets to meet minimum
+                    while len(bullets) < MIN_BULLETS:
+                        if len(bullets) == 0:
+                            # First bullet: extract key concept from title
+                            if len(title_words) >= 3:
+                                bullets.append(f"{' '.join(title_words[:3])} drives strategic value")
+                            else:
+                                bullets.append(f"Key insight: {title}")
+                        elif len(bullets) == 1:
+                            # Second bullet: add supporting context
+                            if len(title_words) >= 2:
+                                bullets.append(f"Analysis shows {' '.join(title_words[-2:])} impact")
+                            else:
+                                bullets.append("Supporting evidence and data analysis")
+                        else:
+                            # Additional bullets if needed
+                            bullets.append(f"Strategic implication {len(bullets)}")
+                    
+                    content["bullets"] = bullets
+                    corrections += 1
+                    logger.warning(
+                        "enforced_minimum_bullets",
+                        slide_number=slide_num,
+                        slide_title=title[:50],
+                        original_count=original_count,
+                        enforced_count=len(bullets),
+                        min_required=MIN_BULLETS
+                    )
 
             elif slide_type == "chart":
                 # Chart slides must have valid chart_data
@@ -1109,7 +1230,14 @@ class ValidationAgent:
                     bullets = content.get("bullets", [])
                     if bullets:
                         headers = ["Item", "Details", "Impact"]
-                        rows = [[b[:40], "—", "High"] for b in bullets[:6]]
+                        rows = [
+                            [
+                                (b.get("text", str(b)) if isinstance(b, dict) else str(b))[:40],
+                                "—",
+                                "High"
+                            ]
+                            for b in bullets[:6]
+                        ]
                     else:
                         headers = ["Metric", "Current", "Target", "Gap"]
                         rows = [
@@ -1120,7 +1248,13 @@ class ValidationAgent:
                         ]
                     content["table_data"] = {"headers": headers, "rows": rows}
                     corrections += 1
-                    logger.info("generated_table_data_fallback", slide_number=slide_num)
+                    logger.warning(
+                        "generated_table_data_fallback",
+                        slide_number=slide_num,
+                        slide_title=slide.get("title", "")[:50],
+                        headers_count=len(headers),
+                        rows_count=len(rows)
+                    )
                 else:
                     # Validate row/column alignment
                     num_cols = len(headers)
@@ -1139,6 +1273,15 @@ class ValidationAgent:
                     if fixed_rows != rows:
                         content["table_data"] = {"headers": [str(h) for h in headers], "rows": fixed_rows}
                         corrections += 1
+                
+                # CRITICAL: Ensure bullets exist as fallback for rendering
+                if not content.get("bullets"):
+                    content["bullets"] = [
+                        "Key data points shown in table above",
+                        "Comparative analysis across metrics",
+                    ]
+                    corrections += 1
+                    logger.info("added_fallback_bullets_to_table", slide_number=slide_num)
 
             elif slide_type == "comparison":
                 # Comparison slides must have comparison_data with left_column and right_column
@@ -1174,7 +1317,13 @@ class ValidationAgent:
                         }
                     }
                     corrections += 1
-                    logger.info("generated_comparison_data_fallback", slide_number=slide_num)
+                    logger.warning(
+                        "generated_comparison_data_fallback",
+                        slide_number=slide_num,
+                        slide_title=slide.get("title", "")[:50],
+                        left_bullets=len(content["comparison_data"]["left_column"]["bullets"]),
+                        right_bullets=len(content["comparison_data"]["right_column"]["bullets"])
+                    )
                 elif has_new_format:
                     # Validate left_column and right_column structure
                     for col_key in ("left_column", "right_column"):
@@ -1203,6 +1352,15 @@ class ValidationAgent:
                     }
                     corrections += 1
                     logger.info("normalised_comparison_old_to_new_format", slide_number=slide_num)
+                
+                # CRITICAL: Ensure bullets exist as fallback for rendering
+                if not content.get("bullets"):
+                    content["bullets"] = [
+                        "Comparative analysis shown above",
+                        "Key differences highlighted",
+                    ]
+                    corrections += 1
+                    logger.info("added_fallback_bullets_to_comparison", slide_number=slide_num)
 
             elif slide_type == "metric":
                 # Metric slides must have metric_value
@@ -1420,6 +1578,131 @@ class ValidationAgent:
         
         return corrected, corrections
     
+    def calculate_content_density(self, slide: Dict[str, Any]) -> float:
+        """
+        Calculate content density for a slide (0.0 to 1.0).
+        
+        Estimates how much of the slide is filled with text content.
+        Higher values = more crowded, lower values = more whitespace.
+        
+        Args:
+            slide: Slide dictionary
+            
+        Returns:
+            Content density ratio (0.0 to 1.0)
+        """
+        content = slide.get("content", {})
+        slide_type = slide.get("type", "content")
+        
+        # Base density calculation on text content
+        total_chars = 0
+        
+        # Title contributes to density
+        title = slide.get("title", "")
+        total_chars += len(title)
+        
+        # Bullets contribute most to density
+        bullets = content.get("bullets", [])
+        for bullet in bullets:
+            total_chars += len(str(bullet))
+        
+        # Subtitle/highlight text
+        subtitle = content.get("subtitle", "")
+        highlight = content.get("highlight_text", "")
+        total_chars += len(subtitle) + len(highlight)
+        
+        # Chart/table/comparison data adds moderate density
+        if slide_type == "chart" and content.get("chart_data"):
+            total_chars += 100  # Fixed penalty for chart
+        elif slide_type == "table" and content.get("table_data"):
+            table_data = content["table_data"]
+            headers = table_data.get("headers", [])
+            rows = table_data.get("rows", [])
+            total_chars += len(" ".join(str(h) for h in headers))
+            for row in rows:
+                total_chars += len(" ".join(str(cell) for cell in row))
+        elif slide_type == "comparison" and content.get("comparison_data"):
+            comp = content["comparison_data"]
+            left = comp.get("left_column", {})
+            right = comp.get("right_column", {})
+            total_chars += len(left.get("heading", "")) + len(right.get("heading", ""))
+            total_chars += sum(len(str(b)) for b in left.get("bullets", []))
+            total_chars += sum(len(str(b)) for b in right.get("bullets", []))
+        
+        # Estimate density based on character count
+        # Typical slide can comfortably hold ~400-500 chars
+        # MAX_CONTENT_DENSITY = 0.75 means we allow up to ~600 chars
+        MAX_COMFORTABLE_CHARS = 500
+        density = min(1.0, total_chars / MAX_COMFORTABLE_CHARS)
+        
+        return density
+    
+    def enforce_content_density(self, slide: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
+        """
+        Enforce content density limits to prevent overflow.
+        
+        If content density exceeds MAX_CONTENT_DENSITY (0.75), reduces content:
+        - Truncates bullets to MAX_BULLETS (4)
+        - Truncates each bullet to MAX_WORDS_PER_BULLET (8)
+        - Truncates title to MAX_TITLE_WORDS (8)
+        
+        Args:
+            slide: Slide dictionary
+            
+        Returns:
+            Tuple of (corrected_slide, was_modified)
+        """
+        density = self.calculate_content_density(slide)
+        
+        if density <= MAX_CONTENT_DENSITY:
+            return slide, False
+        
+        # Content is too dense, apply reductions
+        corrected = deepcopy(slide)
+        content = corrected.get("content", {})
+        
+        # 1. Truncate title
+        title = corrected.get("title", "")
+        truncated_title = SlideContentParser.truncate_title(title, MAX_TITLE_WORDS)
+        if truncated_title != title:
+            corrected["title"] = truncated_title
+        
+        # 2. Truncate bullets
+        bullets = content.get("bullets", [])
+        if bullets:
+            # First, truncate each bullet to max words
+            truncated_bullets = [
+                SlideContentParser.truncate_bullet(b, MAX_WORDS_PER_BULLET)
+                for b in bullets
+            ]
+            # Then, limit to max bullet count
+            if len(truncated_bullets) > MAX_BULLETS:
+                truncated_bullets = truncated_bullets[:MAX_BULLETS]
+            
+            content["bullets"] = truncated_bullets
+            corrected["content"] = content
+        
+        # 3. Truncate highlight text if present
+        highlight = content.get("highlight_text", "")
+        if highlight:
+            words = highlight.split()
+            if len(words) > 15:  # Max 15 words for highlight
+                content["highlight_text"] = " ".join(words[:15])
+                corrected["content"] = content
+        
+        # Recalculate density
+        new_density = self.calculate_content_density(corrected)
+        
+        logger.warning(
+            "content_density_enforced",
+            slide_number=slide.get("slide_number", 0),
+            original_density=round(density, 2),
+            new_density=round(new_density, 2),
+            max_allowed=MAX_CONTENT_DENSITY
+        )
+        
+        return corrected, True
+    
     def apply_content_constraints(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Apply content constraints and split slides if needed.
@@ -1438,6 +1721,15 @@ class ValidationAgent:
             return corrected, overflow_slides
         
         for i, slide in enumerate(corrected.get("slides", [])):
+            # First, enforce content density to prevent overflow
+            slide, was_modified = self.enforce_content_density(slide)
+            if was_modified:
+                logger.info(
+                    "slide_content_reduced_for_density",
+                    slide_number=i + 1,
+                    title=slide.get("title", "")[:50]
+                )
+            
             # Parse and correct slide content
             parsed_slide = SlideContentParser.parse_slide_content(slide)
             

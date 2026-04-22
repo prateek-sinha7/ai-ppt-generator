@@ -65,7 +65,7 @@ class ProviderConfig:
     def _default_max_tokens(self) -> int:
         """Get default max_tokens per provider — large enough for full presentations"""
         defaults = {
-            ProviderType.CLAUDE: 16000,   # Claude supports up to 64k output
+            ProviderType.CLAUDE: 32000,   # Claude supports up to 64k output - increased for full 13-slide presentations
             ProviderType.OPENAI: 16000,
             ProviderType.GROQ: 16000,     # Groq supports up to 32k — use 16k for safety
             ProviderType.LOCAL: 4096,
