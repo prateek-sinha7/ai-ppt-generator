@@ -196,19 +196,34 @@ async function buildTitle(s, slide, C) {
       align:"center", valign:"middle", margin:0,
     });
   } else {
-    // Regular title slide - adjust height based on title length
-    const titleHeight = titleWordCount > 10 ? 2.2 : 1.8;
-    const fontSize = titleWordCount > 10 ? 28 : 32;
+    // Regular title slide — dynamic height to prevent subtitle overlap
+    const titleCharCount = titleText.length;
+    let fontSize, charsPerLine, lineHeight;
+    if (titleWordCount > 12) {
+      fontSize = 24; charsPerLine = 55; lineHeight = 0.55;
+    } else if (titleWordCount > 10) {
+      fontSize = 28; charsPerLine = 48; lineHeight = 0.62;
+    } else {
+      fontSize = 32; charsPerLine = 42; lineHeight = 0.70;
+    }
+
+    const estimatedLines = Math.ceil(titleCharCount / charsPerLine);
+    const estimatedTextHeight = estimatedLines * lineHeight;
+    // Add padding and ensure minimum height
+    const titleHeight = Math.max(estimatedTextHeight + 0.3, 1.4);
     const titleY = 1.0;
+
     s.addText(titleText, {
       x:0.45, y:titleY, w:6.8, h:titleHeight,
       fontSize, bold:true, color:"FFFFFF",
       fontFace:C.fontHeader, charSpacing:titleWordCount > 10 ? 1 : 3,
       margin:0, valign:"top",
     });
-    
-    // Calculate subtitle position based on title end + margin
-    var subtitleY = titleY + titleHeight + 0.15; // 0.15 inch margin below title
+
+    // Subtitle always starts AFTER the title box ends + safe margin
+    var subtitleY = titleY + titleHeight + 0.2;
+    // Clamp so subtitle never goes below 3.0 (leaves room for KPI cards)
+    subtitleY = Math.min(subtitleY, 3.0);
   }
 
   // Subtitle - centered for Thank You slide, positioned below title for regular slides
@@ -230,25 +245,29 @@ async function buildTitle(s, slide, C) {
 
   // Thin divider - only for non-Thank You slides, positioned below subtitle
   if (!isThankYou && subtitle) {
-    const dividerY = subtitleY + 0.55; // Below subtitle
-    s.addShape("rect", { x:0.45, y:dividerY, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
+    const dividerY = subtitleY + 0.58; // Below subtitle
+    if (dividerY < 3.6) {
+      s.addShape("rect", { x:0.45, y:dividerY, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
+    }
   } else if (!isThankYou) {
     // No subtitle, use default position
     s.addShape("rect", { x:0.45, y:3.5, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
   }
 
-  // KPI badge cards (up to 4 bullets) - adjusted position
+  // KPI badge cards — position below divider, always at least 0.2" below subtitle
+  const kpiY = subtitle ? Math.max(subtitleY + 0.75, 3.7) : 3.8;
+  const kpiH = H - kpiY - 0.1;
   const kpis = bullets.slice(0, 4);
-  if (kpis.length > 0 && !isThankYou) {
+  if (kpis.length > 0 && !isThankYou && kpiH > 0.5) {
     kpis.forEach((kpi, i) => {
       const bx = 0.45 + i * 2.35;
       s.addShape("rect", {
-        x:bx, y:3.8, w:2.15, h:1.5,
+        x:bx, y:kpiY, w:2.15, h:kpiH,
         fill:{color:C.cardBg}, line:{color:C.teal, width:1},
         shadow:mkShadow(),
       });
       s.addText(kpi, {
-        x:bx, y:3.85, w:2.15, h:1.4,
+        x:bx, y:kpiY + 0.05, w:2.15, h:kpiH - 0.1,
         fontSize:11, color:"FFFFFF", align:"center", valign:"middle",
         fontFace:C.fontBody, margin:6,
       });
