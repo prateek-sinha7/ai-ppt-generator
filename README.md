@@ -1,6 +1,6 @@
 # AI Presentation Intelligence Platform
 
-A full-stack AI-powered platform that generates professional, consulting-grade presentations from a single topic input. The system uses a multi-agent pipeline to research, enrich, and generate structured slide decks with charts, tables, comparisons, and rich visuals — all rendered in real-time via Server-Sent Events.
+A full-stack AI-powered platform that generates professional, enterprise-grade presentations from a single topic input. The system uses a 10-agent pipeline to classify, design, research, enrich, and generate structured slide decks with charts, tables, comparisons, and rich visuals — all rendered in real-time via Server-Sent Events.
 
 ---
 
@@ -24,16 +24,19 @@ A full-stack AI-powered platform that generates professional, consulting-grade p
 ## Features
 
 - **One-input generation** — enter a topic, get a full professional presentation
-- **Multi-agent AI pipeline** — 8 specialized agents handle classification, research, data enrichment, prompt engineering, generation, validation, and quality scoring
+- **10-agent AI pipeline** — industry classification, design spec generation, storyboarding, research, data enrichment, prompt engineering, LLM generation, validation, visual refinement, and quality scoring
+- **User theme selection** — choose from 4 enterprise themes via a visual picker, or let the system auto-detect based on industry and audience
+- **Design Agent** — LLM-driven color palette, font pairing, and visual motif generation tailored to each topic
 - **Real-time streaming** — slides appear progressively via SSE as they are generated
-- **Rich slide types** — title, content, chart (bar/line/pie), table, comparison, metric/KPI
-- **Visual themes** — McKinsey, Deloitte, Dark Modern
-- **Interactive viewer** — fullscreen mode, keyboard navigation, speaker notes panel, dot navigation
-- **Download PPTX** — export the generated presentation as a PowerPoint file
-- **Quality scoring** — automatic quality assessment with feedback loop (re-generates if score < 8)
-- **Provider failover** — Claude → OpenAI → GROQ with automatic fallback
-- **Multi-tenant** — JWT-based auth with role-based access control
+- **Rich slide types** — title, content, chart (bar/line/pie/area/scatter/donut), table, comparison, metric/KPI
+- **PPTX export** — enterprise-grade PowerPoint export via a dedicated Node.js pptx-service using pptxgenjs
+- **Quality scoring** — automatic quality assessment with feedback loop (re-generates if score < 8.0)
+- **Provider failover** — Claude → OpenAI → Groq with circuit breaker and automatic fallback
+- **Multi-tenant** — JWT-based auth with role-based access control (admin / member / viewer)
 - **LangSmith tracing** — full observability for all LLM calls
+- **Interactive viewer** — fullscreen mode, keyboard navigation, speaker notes panel, dot navigation
+- **Checkpoint recovery** — pipeline resumes from the last completed agent on failure
+- **Cost control** — configurable per-request LLM call limits and spend ceiling
 
 ---
 
@@ -42,7 +45,7 @@ A full-stack AI-powered platform that generates professional, consulting-grade p
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Frontend (React)                          │
-│  PresentationGenerator → SSE Stream → ProgressiveSlideViewer    │
+│  PresentationGenerator → ThemeSelector → SSE → SlideViewer      │
 └────────────────────────────┬────────────────────────────────────┘
                              │ HTTP / SSE
 ┌────────────────────────────▼────────────────────────────────────┐
@@ -54,16 +57,21 @@ A full-stack AI-powered platform that generates professional, consulting-grade p
 ┌──────────▼──────────────────────────────────────────────────────┐
 │                  Multi-Agent Pipeline (Celery Worker)            │
 │                                                                  │
-│  Industry       Storyboarding    Research      Data              │
-│  Classifier  →  Agent        →   Agent     →   Enrichment    →  │
+│  ① Industry      ② Design        ③ Storyboarding                │
+│    Classifier  →   Agent       →   Agent                     →  │
 │                                                                  │
-│  Prompt         LLM Provider     Validation    Quality           │
-│  Engineering →  (Claude/GPT) →   Agent     →   Scoring          │
+│  ④ Research      ⑤ Data          ⑥ Prompt                       │
+│    Agent       →   Enrichment  →   Engineering               →  │
+│                                                                  │
+│  ⑦ LLM Provider  ⑧ Validation   ⑨ Visual        ⑩ Quality      │
+│    (Claude/GPT) →  Agent       →   Refinement  →   Scoring      │
+│                                                                  │
+│  [Feedback Loop: if score < 8.0, re-run ⑦→⑩ up to 2 times]    │
 └──────────────────────────────────────────────────────────────────┘
            │
 ┌──────────▼──────────────────────────────────────────────────────┐
 │  Infrastructure                                                  │
-│  PostgreSQL 16 │ Redis 7 │ MinIO (S3) │ LangSmith               │
+│  PostgreSQL 16 │ Redis 7 │ MinIO (S3) │ pptx-service │ LangSmith│
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,13 +87,11 @@ A full-stack AI-powered platform that generates professional, consulting-grade p
 | Database | PostgreSQL 16 + SQLAlchemy 2 (async) |
 | Migrations | Alembic |
 | AI Orchestration | LangChain 0.2 |
-| LLM Providers | Anthropic Claude, OpenAI GPT-4o, Groq Llama |
-| Observability | LangSmith |
+| LLM Providers | Anthropic Claude, OpenAI GPT-4o, Groq Llama-3.3-70b |
+| Observability | LangSmith + structlog |
 | Object Storage | MinIO (S3-compatible) |
-| PPTX Export | python-pptx |
 | Auth | JWT (python-jose) + bcrypt |
-| Logging | structlog |
-| Runtime | Python 3.11 + Poetry |
+| Runtime | Python 3.11 + Poetry 1.8 |
 
 ### Frontend
 | Component | Technology |
@@ -99,11 +105,19 @@ A full-stack AI-powered platform that generates professional, consulting-grade p
 | HTTP Client | Axios |
 | Streaming | EventSource (SSE) |
 
+### PPTX Service
+| Component | Technology |
+|-----------|-----------|
+| Runtime | Node.js + Express |
+| PPTX Generation | pptxgenjs |
+| PDF Preview | LibreOffice headless + pdftoppm |
+
 ### Infrastructure
 | Service | Purpose | Port |
 |---------|---------|------|
 | backend | FastAPI app | 8000 |
 | worker | Celery worker | — |
+| pptx-service | Node.js PPTX builder | 3001 |
 | db | PostgreSQL 16 | 5432 |
 | redis | Broker + cache + streams | 6379 |
 | minio | PPTX file storage | 9000, 9001 |
@@ -117,23 +131,30 @@ A full-stack AI-powered platform that generates professional, consulting-grade p
 ai-ppt-generator/
 ├── backend/
 │   ├── app/
-│   │   ├── agents/              # Multi-agent pipeline
+│   │   ├── agents/              # 10-agent pipeline
 │   │   │   ├── pipeline_orchestrator.py
 │   │   │   ├── industry_classifier.py
+│   │   │   ├── design_agent.py
 │   │   │   ├── storyboarding.py
 │   │   │   ├── research.py
 │   │   │   ├── data_enrichment.py
 │   │   │   ├── prompt_engineering.py
+│   │   │   ├── layout_engine.py
 │   │   │   ├── validation.py
-│   │   │   └── quality_scoring.py
+│   │   │   ├── visual_refinement.py
+│   │   │   ├── quality_scoring.py
+│   │   │   └── conflict_resolution.py
 │   │   ├── api/v1/              # REST API endpoints
 │   │   │   ├── presentations.py
 │   │   │   ├── auth.py
-│   │   │   └── health.py
+│   │   │   ├── health.py
+│   │   │   ├── slide_editing.py
+│   │   │   ├── schema_versioning.py
+│   │   │   └── export_templates_admin.py
 │   │   ├── core/                # Config, security
 │   │   ├── db/                  # Models, sessions
-│   │   ├── middleware/          # RBAC, audit, sanitization
-│   │   ├── services/            # LLM provider, streaming, cache
+│   │   ├── middleware/          # RBAC, audit, sanitization, security headers, tenant, API versioning
+│   │   ├── services/            # LLM provider, streaming, cache, cost tracking, rate limiter
 │   │   └── worker/              # Celery tasks
 │   ├── alembic/                 # DB migrations
 │   ├── tests/                   # pytest test suite
@@ -141,18 +162,26 @@ ai-ppt-generator/
 ├── frontend/
 │   └── src/
 │       ├── components/
-│       │   ├── slides/          # TitleSlide, ChartSlide, TableSlide, etc.
-│       │   ├── ProgressIndicator.tsx
-│       │   ├── ProgressiveSlideViewer.tsx
+│       │   ├── slides/          # TitleSlide, ChartSlide, TableSlide, ComparisonSlide, MetricSlide
+│       │   ├── PresentationGenerator.tsx
+│       │   ├── ThemeSelector.tsx
 │       │   ├── PresentationWorkflow.tsx
+│       │   ├── ProgressiveSlideViewer.tsx
+│       │   ├── ProgressIndicator.tsx
 │       │   └── DownloadButton.tsx
 │       ├── hooks/               # useSSEStream
-│       ├── services/            # API client
-│       ├── styles/              # Design tokens, themes
-│       └── types/               # TypeScript interfaces
+│       ├── services/            # API client (axios)
+│       ├── styles/              # Design tokens (spacing, typography, themes)
+│       ├── types/               # TypeScript interfaces
+│       └── utils/               # themeUtils, layoutEngine
+├── pptx-service/
+│   ├── builder.js               # pptxgenjs slide builder
+│   ├── server.js                # Express server (/build, /preview)
+│   ├── icons.js                 # SVG icon renderer
+│   └── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
-└── README.md
+└── ARCHITECTURE.md
 ```
 
 ---
@@ -178,11 +207,9 @@ cp .env.example .env
 ### 2. Set your API keys in `.env`
 
 ```env
-# Primary LLM provider
 LLM_PRIMARY_PROVIDER=claude
 LLM_FALLBACK_PROVIDERS=openai,groq
 
-# API Keys
 ANTHROPIC_API_KEY=sk-ant-api03-...
 OPENAI_API_KEY=sk-...          # optional
 GROQ_API_KEY=gsk_...           # optional
@@ -226,10 +253,11 @@ All configuration is via environment variables in `.env`:
 | `LANGSMITH_API_KEY` | — | LangSmith tracing key |
 | `LANGCHAIN_TRACING_V2` | `false` | Enable LangSmith tracing |
 | `SECRET_KEY` | — | JWT signing secret (change in production) |
-| `DATABASE_URL` | postgres://... | PostgreSQL connection string |
-| `REDIS_URL` | redis://redis:6379/0 | Redis connection string |
-| `MAX_LLM_CALLS_PER_REQUEST` | `4` | Cost control limit |
+| `DATABASE_URL` | `postgresql+asyncpg://...` | PostgreSQL connection string |
+| `REDIS_URL` | `redis://redis:6379/0` | Redis connection string |
+| `MAX_LLM_CALLS_PER_REQUEST` | `4` | Max LLM calls per generation |
 | `COST_CEILING_USD` | `1.0` | Max spend per request |
+| `PPTX_SERVICE_URL` | `http://pptx-service:3001` | pptx-service endpoint |
 
 ---
 
@@ -251,10 +279,11 @@ POST /api/v1/auth/login
 ### Presentations
 
 ```bash
-# Generate a presentation
+# Generate a presentation (with optional theme)
 POST /api/v1/presentations
 Authorization: Bearer <token>
-{ "topic": "Healthcare sector market analysis" }
+{ "topic": "Healthcare sector market analysis", "theme": "corporate" }
+# theme is optional: corporate | executive | professional | dark-modern
 # Returns: { "job_id": "...", "presentation_id": "..." }
 
 # Stream generation progress (SSE)
@@ -271,11 +300,10 @@ POST /api/v1/presentations/{id}/regenerate
 
 # Export to PPTX
 POST /api/v1/presentations/{id}/export
-# Returns: { "job_id": "..." }
-
-# Poll export status
 GET /api/v1/presentations/{id}/export/status?job_id=<job_id>
-# Returns: { "status": "completed", "download_url": "..." }
+
+# Cancel a running job
+DELETE /api/v1/jobs/{job_id}
 ```
 
 ### SSE Event Types
@@ -293,22 +321,24 @@ GET /api/v1/presentations/{id}/export/status?job_id=<job_id>
 
 ## Agent Pipeline
 
-The pipeline runs 8 agents sequentially:
+The pipeline runs 10 agents sequentially:
 
 ```
-1. Industry Classifier  (≤15s)  — Detects industry, audience, template, theme
-2. Storyboarding        (≤10s)  — Builds section structure and slide plan
-3. Research             (≤30s)  — Gathers insights, risks, opportunities
-4. Data Enrichment      (≤20s)  — Generates charts, tables, KPI metrics
-5. Prompt Engineering   (≤5s)   — Optimises prompts per LLM provider
-6. LLM Provider         (≤150s) — Generates full Slide_JSON via Claude/GPT/Groq
-7. Validation           (≤5s)   — Validates schema, auto-corrects errors
-8. Quality Scoring      (≤10s)  — Scores 5 dimensions; triggers feedback loop if < 8.0
+ 1. Industry Classifier  (≤15s)   — Detects industry, audience, template, theme
+ 2. Design Agent         (≤20s)   — Generates color palette, fonts, motif via LLM
+ 3. Storyboarding        (≤10s)   — Builds section structure and slide plan
+ 4. Research             (≤60s)   — Gathers insights, risks, opportunities via LLM
+ 5. Data Enrichment      (≤20s)   — Generates charts, tables, KPI metrics
+ 6. Prompt Engineering   (≤5s)    — Optimises prompts per LLM provider
+ 7. LLM Provider         (≤300s)  — Generates full Slide_JSON via Claude/GPT/Groq
+ 8. Validation           (≤5s)    — Validates schema, auto-corrects errors
+ 9. Visual Refinement    (≤90s)   — Post-validation visual polish
+10. Quality Scoring      (≤10s)   — Scores 5 dimensions; triggers feedback loop if < 8.0
 ```
 
 **Quality dimensions:** Content Depth (25%) · Visual Appeal (20%) · Structure Coherence (25%) · Data Accuracy (15%) · Clarity (15%)
 
-**Feedback loop:** If composite score < 8.0, agents 6–8 re-run automatically (max 2 retries).
+**Feedback loop:** If composite score < 8.0, agents 7-10 re-run automatically (max 2 retries).
 
 ---
 
@@ -318,20 +348,25 @@ The pipeline runs 8 agents sequentially:
 |------|-------------|-------------|
 | `title` | `centered` | Title + subtitle with decorative background |
 | `content` | `bullet-left` | Numbered bullets with icon and highlight box |
-| `chart` | `split-chart-right` | Bar / line / pie chart with stats panel |
+| `chart` | `split-chart-right` | Bar / line / pie / area / scatter / donut chart with stats panel |
 | `table` | `split-table-left` | Data table with colored header row |
 | `comparison` | `two-column` | Side-by-side A vs B with VS divider |
-| `metric` | `highlight-metric` | Big KPI number with animated counter and trend |
+| `metric` | `highlight-metric` | Big KPI number with trend badge and context bullets |
 
 ---
 
 ## Themes
 
-| Theme | Primary Color | Style |
-|-------|--------------|-------|
-| `mckinsey` | Navy `#003366` | Classic consulting, white background |
-| `deloitte` | Green `#86BC25` | Modern professional, clean |
-| `dark-modern` | Purple `#6C63FF` | Dark background, vibrant accents |
+Users can select a theme from the UI or let the system auto-detect based on industry and audience.
+
+| Theme | Primary | Style | Auto-selected for |
+|-------|---------|-------|-------------------|
+| `corporate` | Navy `#002855` | Clean enterprise, monochromatic navy-white | Default for most industries |
+| `executive` | Navy `#003366` | Boardroom-ready with gold accent | Executive audiences, consulting |
+| `professional` | Green `#86BC25` | Modern professional services | Finance, insurance, analyst audiences |
+| `dark-modern` | Purple `#6C63FF` | Dark background, vibrant accents | Technology, fintech, technical audiences |
+
+Each theme includes a full color palette (primary, secondary, accent, background, text, surface, border), chart color series, and font pairing. The Design Agent further refines colors per topic using LLM-generated palettes.
 
 ---
 
@@ -355,6 +390,12 @@ docker compose run --rm backend pytest tests/test_pipeline_orchestrator.py -v
 docker compose run --rm backend pytest --cov=app tests/ -v
 ```
 
+### Run frontend tests
+
+```bash
+cd frontend && npm run test
+```
+
 ### Rebuild after dependency changes
 
 ```bash
@@ -365,30 +406,30 @@ docker compose up -d
 ### View logs
 
 ```bash
-# All services
-docker compose logs -f
-
-# Worker only (agent pipeline)
-docker compose logs -f worker
-
-# Backend only
-docker compose logs -f backend
+docker compose logs -f           # All services
+docker compose logs -f worker    # Agent pipeline
+docker compose logs -f backend   # API server
 ```
 
 ---
 
 ## Testing
 
-The test suite covers:
-
 | Test File | Coverage |
 |-----------|---------|
 | `test_pipeline_orchestrator.py` | Full pipeline, feedback loop, checkpoints |
-| `test_background_jobs.py` | Celery tasks, idempotency, retries |
+| `test_pptx_export.py` | PPTX generation, all themes, all slide types |
+| `test_presentations_api.py` | API endpoints, rate limiting, status progression |
 | `test_quality_scoring_agent.py` | All 5 scoring dimensions |
 | `test_validation_agent.py` | Schema validation, auto-corrections |
 | `test_data_enrichment_agent.py` | Data generation, chart types |
 | `test_research_agent.py` | Research findings structure |
+| `test_industry_classifier.py` | Classification, theme selection |
+| `test_layout_engine.py` | Visual hints, density, layout scoring |
+| `test_background_jobs.py` | Celery tasks, idempotency, retries |
+| `test_caching_layer.py` | Cache keys, hit/miss, analytics |
+| `test_advanced_integration.py` | Slide snapshots, multi-tenant isolation |
+| `test_observability.py` | Agent tracing, provider failover |
 
 ---
 

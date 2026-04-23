@@ -85,7 +85,7 @@ VALID_TYPOGRAPHY_TOKENS: frozenset = frozenset({
 
 # Valid theme names — must stay in sync with tokens.ts themes object
 VALID_THEME_NAMES: frozenset = frozenset({
-    "mckinsey", "deloitte", "dark-modern",
+    "executive", "professional", "dark-modern", "corporate",
 })
 
 # layout_instructions keys that reference spacing tokens

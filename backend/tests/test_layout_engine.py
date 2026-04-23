@@ -279,7 +279,7 @@ class TestLayoutScoring:
             layout_instructions={
                 "padding": "6",
                 "font_size": "slide-body",
-                "theme": "mckinsey",
+                "theme": "corporate",
             },
         )
         score = score_slide_layout(slide)

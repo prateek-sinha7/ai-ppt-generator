@@ -77,7 +77,7 @@ class DesignSpec:
 # ---------------------------------------------------------------------------
 
 FALLBACK_PALETTES: Dict[str, DesignSpec] = {
-    "mckinsey": DesignSpec(
+    "executive": DesignSpec(
         primary_color="002F6C",
         secondary_color="0077C8",
         accent_color="FFB81C",
@@ -91,7 +91,7 @@ FALLBACK_PALETTES: Dict[str, DesignSpec] = {
         motif="left-bar",
         palette_name="Midnight Executive",
     ),
-    "deloitte": DesignSpec(
+    "professional": DesignSpec(
         primary_color="000000",
         secondary_color="86BC25",
         accent_color="00B4CC",
@@ -118,6 +118,20 @@ FALLBACK_PALETTES: Dict[str, DesignSpec] = {
         font_body="Calibri Light",
         motif="glow-dot",
         palette_name="Midnight Executive",
+    ),
+    "corporate": DesignSpec(
+        primary_color="002855",
+        secondary_color="005288",
+        accent_color="0078AC",
+        text_color="212121",
+        text_light_color="646464",
+        background_color="FFFFFF",
+        background_dark_color="002855",
+        chart_colors=["002855", "005288", "0078AC", "4682B4", "8CAAC8"],
+        font_header="Calibri",
+        font_body="Calibri",
+        motif="left-bar",
+        palette_name="Corporate Navy",
     ),
 }
 
@@ -252,7 +266,7 @@ Choose the design system that best fits this specific topic. Return JSON:
         self,
         topic: str,
         industry: str,
-        theme: str = "mckinsey",
+        theme: str = "corporate",
         execution_id: str = "",
     ) -> DesignSpec:
         """
@@ -365,7 +379,7 @@ Choose the design system that best fits this specific topic. Return JSON:
     def _fallback_spec(self, theme: str) -> DesignSpec:
         """Return a built-in fallback palette."""
         key = theme.replace("-", "_").lower()
-        return FALLBACK_PALETTES.get(key, FALLBACK_PALETTES["mckinsey"])
+        return FALLBACK_PALETTES.get(key, FALLBACK_PALETTES["corporate"])
 
 
 # Global singleton

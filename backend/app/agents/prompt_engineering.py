@@ -73,7 +73,7 @@ class PromptTemplate(BaseModel):
 # Claude-specific template (verbose, structured, XML-friendly)
 CLAUDE_TEMPLATE = PromptTemplate(
     provider_type=ProviderType.claude,
-    system_prompt="""You are a senior McKinsey consultant and presentation designer creating board-level, enterprise-grade slide decks.
+    system_prompt="""You are a senior strategy consultant and presentation designer creating board-level, enterprise-grade slide decks.
 
 Your task is to generate a COMPLETE, INFORMATION-DENSE presentation following a predefined structure plan.
 
@@ -289,7 +289,7 @@ ABSOLUTE RULES:
 # OpenAI-specific template (concise, direct, JSON-focused)
 OPENAI_TEMPLATE = PromptTemplate(
     provider_type=ProviderType.openai,
-    system_prompt="""You are a senior McKinsey consultant creating board-level, enterprise-grade slide decks.
+    system_prompt="""You are a senior strategy consultant creating board-level, enterprise-grade slide decks.
 
 Generate a COMPLETE, INFORMATION-DENSE presentation following the provided structure plan exactly.
 
@@ -447,7 +447,7 @@ ABSOLUTE RULES:
 # Groq-specific template (fast, efficient, but still content-dense)
 GROQ_TEMPLATE = PromptTemplate(
     provider_type=ProviderType.groq,
-    system_prompt="""You are a McKinsey consultant creating enterprise-grade slide decks.
+    system_prompt="""You are a strategy consultant creating enterprise-grade slide decks.
 
 Generate a COMPLETE, INFORMATION-DENSE presentation following the provided plan exactly.
 

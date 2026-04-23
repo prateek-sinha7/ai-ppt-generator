@@ -3,7 +3,7 @@ Tests for PPTX Export Service (Task 24).
 
 Tests cover:
 - Task 24.1: Slide type mapping to PPTX layouts
-- Task 24.2: Theme application (McKinsey, Deloitte, Dark Modern)
+- Task 24.2: Theme application (Corporate, Professional, Dark Modern)
 - Task 24.3: Chart rendering (bar, line, pie)
 - Task 24.4: Table rendering with formatting
 - Task 24.5: Transition mapping
@@ -205,7 +205,7 @@ class TestSlideTypeMapping:
     
     def test_title_slide_creation(self, sample_title_slide):
         """Test title slide is created with correct layout."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_title_slide])
         
         assert isinstance(pptx_bytes, bytes)
@@ -224,7 +224,7 @@ class TestSlideTypeMapping:
     
     def test_content_slide_creation(self, sample_content_slide):
         """Test content slide is created with bullets."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_content_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -238,7 +238,7 @@ class TestSlideTypeMapping:
     
     def test_chart_slide_creation(self, sample_chart_slide):
         """Test chart slide is created with chart."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_chart_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -252,7 +252,7 @@ class TestSlideTypeMapping:
     
     def test_table_slide_creation(self, sample_table_slide):
         """Test table slide is created with table."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_table_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -266,7 +266,7 @@ class TestSlideTypeMapping:
     
     def test_comparison_slide_creation(self, sample_comparison_slide):
         """Test comparison slide is created with two columns."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_comparison_slide])
 
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -274,7 +274,7 @@ class TestSlideTypeMapping:
 
     def test_metric_slide_creation(self, sample_metric_slide):
         """Test metric/KPI slide is created with large number display."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_metric_slide])
 
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -282,7 +282,7 @@ class TestSlideTypeMapping:
 
     def test_all_slide_types(self, all_slide_types):
         """Test all slide types can be created in one presentation."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build(all_slide_types)
 
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -296,25 +296,25 @@ class TestSlideTypeMapping:
 class TestThemeApplication:
     """Test theme color scheme application."""
     
-    def test_mckinsey_theme(self, sample_content_slide):
-        """Test McKinsey theme colors are applied."""
-        builder = PPTXBuilder("mckinsey")
+    def test_Corporate_theme(self, sample_content_slide):
+        """Test Corporate theme colors are applied."""
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
         assert len(pptx_bytes) > 0
         
         # Verify theme was set
-        assert builder.theme_name == "mckinsey"
-        assert builder.theme_colors == ThemeColors.MCKINSEY
-    def test_deloitte_theme(self, sample_content_slide):
-        """Test Deloitte theme colors are applied."""
-        builder = PPTXBuilder("deloitte")
+        assert builder.theme_name == "corporate"
+        assert builder.theme_colors == ThemeColors.Corporate
+    def test_Professional_theme(self, sample_content_slide):
+        """Test Professional theme colors are applied."""
+        builder = PPTXBuilder("professional")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
-        assert builder.theme_name == "deloitte"
-        assert builder.theme_colors == ThemeColors.DELOITTE
+        assert builder.theme_name == "professional"
+        assert builder.theme_colors == ThemeColors.Professional
     
     def test_dark_modern_theme(self, sample_content_slide):
         """Test Dark Modern theme colors are applied."""
@@ -333,17 +333,17 @@ class TestThemeApplication:
         assert isinstance(pptx_bytes, bytes)
         assert builder.theme_colors == ThemeColors.DARK_MODERN
     
-    def test_invalid_theme_defaults_to_mckinsey(self, sample_content_slide):
-        """Test invalid theme defaults to McKinsey."""
+    def test_invalid_theme_defaults_to_Corporate(self, sample_content_slide):
+        """Test invalid theme defaults to Corporate."""
         builder = PPTXBuilder("invalid_theme")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
-        assert builder.theme_colors == ThemeColors.MCKINSEY
+        assert builder.theme_colors == ThemeColors.Corporate
     
     def test_theme_colors_in_chart(self, sample_chart_slide):
         """Test theme colors are applied to charts."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_chart_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -380,7 +380,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -403,7 +403,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -423,7 +423,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -447,7 +447,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -473,7 +473,7 @@ class TestChartRendering:
                 }
             }
         }
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         prs = PptxPresentation(BytesIO(pptx_bytes))
         assert len(prs.slides) == 1
@@ -494,7 +494,7 @@ class TestChartRendering:
                 }
             }
         }
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         prs = PptxPresentation(BytesIO(pptx_bytes))
         assert len(prs.slides) == 1
@@ -515,7 +515,7 @@ class TestChartRendering:
                 ]
             }
         }
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         prs = PptxPresentation(BytesIO(pptx_bytes))
         assert len(prs.slides) == 1
@@ -533,7 +533,7 @@ class TestTableRendering:
     
     def test_basic_table_rendering(self, sample_table_slide):
         """Test basic table is rendered with headers and rows."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_table_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -558,7 +558,7 @@ class TestTableRendering:
     
     def test_table_header_formatting(self, sample_table_slide):
         """Test table headers are formatted correctly."""
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([sample_table_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -589,7 +589,7 @@ class TestTableRendering:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         # Should not crash
@@ -615,7 +615,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         # Should not crash
@@ -632,7 +632,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -648,7 +648,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -663,7 +663,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -733,7 +733,7 @@ class TestPerformanceValidation:
         # Measure export time
         start_time = time.time()
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build(slides)
         
         end_time = time.time()
@@ -766,7 +766,7 @@ class TestPerformanceValidation:
             ]
             
             start_time = time.time()
-            builder = PPTXBuilder("mckinsey")
+            builder = PPTXBuilder("corporate")
             pptx_bytes = builder.build(slides)
             elapsed = time.time() - start_time
             
@@ -787,7 +787,7 @@ class TestBuildPptxFunction:
     
     def test_build_pptx_with_valid_data(self, all_slide_types):
         """Test build_pptx function with valid data."""
-        pptx_bytes = build_pptx(all_slide_types, "mckinsey")
+        pptx_bytes = build_pptx(all_slide_types, "corporate")
         
         assert isinstance(pptx_bytes, bytes)
         assert len(pptx_bytes) > 0
@@ -797,7 +797,7 @@ class TestBuildPptxFunction:
     
     def test_build_pptx_with_empty_list(self):
         """Test build_pptx with empty slide list."""
-        pptx_bytes = build_pptx([], "mckinsey")
+        pptx_bytes = build_pptx([], "corporate")
         
         assert isinstance(pptx_bytes, bytes)
         assert len(pptx_bytes) > 0
@@ -805,11 +805,11 @@ class TestBuildPptxFunction:
     def test_build_pptx_with_invalid_data_type(self):
         """Test build_pptx raises error for invalid data type."""
         with pytest.raises(ValueError, match="slides_data must be a list"):
-            build_pptx("not a list", "mckinsey")
+            build_pptx("not a list", "corporate")
     
     def test_build_pptx_with_all_themes(self, sample_content_slide):
         """Test build_pptx works with all themes."""
-        themes = ["mckinsey", "deloitte", "dark_modern", "dark-modern"]
+        themes = ["corporate", "executive", "professional", "dark_modern", "dark-modern"]
         
         for theme in themes:
             pptx_bytes = build_pptx([sample_content_slide], theme)
@@ -831,7 +831,7 @@ class TestEdgeCases:
             "title": "No Content"
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -843,7 +843,7 @@ class TestEdgeCases:
             "content": {"bullets": ["Test"]}
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -862,7 +862,7 @@ class TestEdgeCases:
             }
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         # Should not crash
@@ -876,7 +876,7 @@ class TestEdgeCases:
             "content": {"bullets": ["Test"]}
         }
         
-        builder = PPTXBuilder("mckinsey")
+        builder = PPTXBuilder("corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)

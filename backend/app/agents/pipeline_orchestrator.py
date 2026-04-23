@@ -196,6 +196,7 @@ class PipelineContext:
     presentation_id: str
     execution_id: str
     topic: str
+    user_selected_theme: Optional[str] = None
 
     # Populated by each agent
     detected_context: Optional[Dict[str, Any]] = None
@@ -220,6 +221,7 @@ class PipelineContext:
             "presentation_id": self.presentation_id,
             "execution_id": self.execution_id,
             "topic": self.topic,
+            "user_selected_theme": self.user_selected_theme,
             "detected_context": self.detected_context,
             "design_spec": self.design_spec,
             "presentation_plan": self.presentation_plan,
@@ -241,6 +243,7 @@ class PipelineContext:
             presentation_id=data["presentation_id"],
             execution_id=data["execution_id"],
             topic=data["topic"],
+            user_selected_theme=data.get("user_selected_theme"),
         )
         ctx.detected_context = data.get("detected_context")
         ctx.design_spec = data.get("design_spec")
@@ -478,6 +481,7 @@ class PipelineOrchestrator:
         topic: str,
         resume_from_checkpoint: bool = True,
         job_id: Optional[str] = None,
+        user_selected_theme: Optional[str] = None,
     ) -> PipelineContext:
         """
         Execute the full pipeline for a presentation.
@@ -508,6 +512,7 @@ class PipelineOrchestrator:
                 presentation_id=presentation_id,
                 execution_id=execution_id,
                 topic=topic,
+                user_selected_theme=user_selected_theme,
             )
 
         # Check final Slide_JSON cache before running the full pipeline (21.1)
@@ -520,7 +525,7 @@ class PipelineOrchestrator:
             # we can attempt a cache lookup immediately.
             if ctx.detected_context:
                 _industry = ctx.detected_context.get("industry", "general")
-                _theme = ctx.detected_context.get("theme", "dark_modern")
+                _theme = ctx.detected_context.get("theme", "corporate")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION
@@ -869,6 +874,18 @@ class PipelineOrchestrator:
             topic=ctx.topic,
             execution_id=ctx.execution_id,
         )
+
+        # Override theme if user explicitly selected one
+        theme = result.theme
+        if ctx.user_selected_theme:
+            theme = ctx.user_selected_theme
+            logger.info(
+                "user_theme_override",
+                auto_theme=result.theme,
+                user_theme=theme,
+                execution_id=ctx.execution_id,
+            )
+
         ctx.detected_context = {
             "industry": result.industry,
             "confidence": result.confidence,
@@ -876,7 +893,7 @@ class PipelineOrchestrator:
             "target_audience": result.target_audience,
             "selected_template_id": result.selected_template_id,
             "selected_template_name": result.selected_template_name,
-            "theme": result.theme,
+            "theme": theme,
             "compliance_context": result.compliance_context,
             "classification_method": result.classification_method,
         }
@@ -889,7 +906,7 @@ class PipelineOrchestrator:
             sub_sector=result.sub_sector,
             target_audience=result.target_audience,
             template_name=result.selected_template_name,
-            theme=result.theme,
+            theme=theme,
             method=result.classification_method
         )
 
@@ -897,7 +914,7 @@ class PipelineOrchestrator:
         """Run the DesignAgent to produce a topic-specific DesignSpec."""
         detected = ctx.detected_context or {}
         industry = detected.get("industry", "general")
-        theme = detected.get("theme", "dark_modern")
+        theme = detected.get("theme", "corporate")
 
         logger.info(
             "design_agent_input",
@@ -1594,7 +1611,7 @@ class PipelineOrchestrator:
                 from app.agents.prompt_engineering import PromptEngineeringAgent
 
                 _industry = detected.get("industry", "general")
-                _theme = detected.get("theme", "dark_modern")
+                _theme = detected.get("theme", "corporate")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION

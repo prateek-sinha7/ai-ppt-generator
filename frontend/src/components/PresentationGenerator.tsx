@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { apiClient } from '../services/api'
+import { Theme } from '../styles/tokens'
+import ThemeSelector from './ThemeSelector'
 
 interface PresentationGeneratorProps {
   onGenerationStart: (presentationId: string, jobId: string) => void
@@ -9,6 +11,7 @@ const MAX_TOPIC_LENGTH = 5000
 
 export default function PresentationGenerator({ onGenerationStart }: PresentationGeneratorProps) {
   const [topic, setTopic] = useState('')
+  const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,10 +32,15 @@ export default function PresentationGenerator({ onGenerationStart }: Presentatio
     setError(null)
 
     try {
-      const response = await apiClient.post('/presentations', { topic: topic.trim() })
+      const payload: { topic: string; theme?: string } = { topic: topic.trim() }
+      if (selectedTheme) {
+        payload.theme = selectedTheme
+      }
+      const response = await apiClient.post('/presentations', payload)
       const { presentation_id, job_id } = response.data
       onGenerationStart(presentation_id, job_id)
       setTopic('')
+      setSelectedTheme(null)
     } catch (err: any) {
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please try again later.')
@@ -88,6 +96,8 @@ export default function PresentationGenerator({ onGenerationStart }: Presentatio
               )}
             </div>
           </div>
+
+          <ThemeSelector selectedTheme={selectedTheme} onSelect={setSelectedTheme} />
 
           <button
             type="submit"

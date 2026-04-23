@@ -44,7 +44,7 @@ export const fontFamily = {
 // Theme Palettes
 // ---------------------------------------------------------------------------
 export const themes = {
-  mckinsey: {
+  executive: {
     primary:   '#003366',
     secondary: '#0066CC',
     accent:    '#FF6600',
@@ -55,7 +55,7 @@ export const themes = {
     border:    '#D1D5DB',
     highlight: '#FFF3E0',
   },
-  deloitte: {
+  professional: {
     primary:   '#86BC25',
     secondary: '#0076A8',
     accent:    '#00A3E0',
@@ -76,6 +76,17 @@ export const themes = {
     muted:     '#9CA3AF',
     border:    '#374151',
     highlight: '#1E1B4B',
+  },
+  corporate: {
+    primary:   '#002855',
+    secondary: '#005288',
+    accent:    '#0078AC',
+    bg:        '#FFFFFF',
+    surface:   '#F5F7FA',
+    text:      '#212121',
+    muted:     '#646464',
+    border:    '#D2DAE2',
+    highlight: '#E8F0F8',
   },
 } as const
 

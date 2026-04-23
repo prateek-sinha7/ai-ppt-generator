@@ -10,7 +10,7 @@ import { MetricSlide } from './MetricSlide'
 
 interface SlideRendererProps {
   slide: SlideData
-  theme: 'mckinsey' | 'deloitte' | 'dark-modern'
+  theme: 'executive' | 'professional' | 'dark-modern' | 'corporate'
   designSpec?: DesignSpec | null
   /** Whether this is the first or last slide (dark background sandwich) */
   isDark?: boolean

@@ -8,6 +8,8 @@ interface ProgressIndicatorProps {
   previewRendering?: boolean
   /** When true, the synthetic "Rendering Preview" step shows as completed */
   previewReady?: boolean
+  /** Elapsed time in ms for the rendering preview step */
+  previewElapsedMs?: number
 }
 
 interface AgentStatus {
@@ -62,6 +64,11 @@ const AGENT_PIPELINE: { name: string; displayName: string; description: string }
     description: 'Validating & correcting slide structure',
   },
   {
+    name: 'visual_refinement',
+    displayName: 'Visual Refinement',
+    description: 'Polishing visual hierarchy & slide aesthetics',
+  },
+  {
     name: 'quality_scoring',
     displayName: 'Quality Scoring',
     description: 'Scoring presentation quality & feedback',
@@ -76,7 +83,7 @@ function formatElapsed(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-export default function ProgressIndicator({ events, isConnected, previewRendering = false, previewReady = false }: ProgressIndicatorProps) {
+export default function ProgressIndicator({ events, isConnected, previewRendering = false, previewReady = false, previewElapsedMs }: ProgressIndicatorProps) {
   // Track start times locally using event timestamps
   const agentStartTimes: Record<string, number> = {}
   const agentElapsed: Record<string, number> = {}
@@ -126,6 +133,7 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
     displayName: 'Rendering Preview',
     description: 'Building PPTX and converting slides to images',
     status: previewStepStatus,
+    elapsedMs: previewReady && previewElapsedMs ? previewElapsedMs : undefined,
   }
 
   const allStatuses = [...agentStatuses, previewStep]
@@ -309,7 +317,7 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
                 <Clock className="w-4 h-4" />
                 {completedCount === totalSteps
                   ? `Total time: ${formatElapsed(
-                      agentStatuses.reduce((s, a) => s + (a.elapsedMs ?? 0), 0)
+                      allStatuses.reduce((s, a) => s + (a.elapsedMs ?? 0), 0)
                     )}`
                   : `${completedCount} of ${totalSteps} steps completed`}
               </span>

@@ -17,14 +17,14 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.post("/build", async (req, res) => {
   console.log(`[${new Date().toISOString()}] POST /build - Received request`);
   const { slides, design_spec, theme } = req.body;
-  console.log(`  - Slides: ${slides?.length || 0}, Theme: ${theme || "mckinsey"}, Design Spec: ${design_spec ? "present" : "none"}`);
+  console.log(`  - Slides: ${slides?.length || 0}, Theme: ${theme || "corporate"}, Design Spec: ${design_spec ? "present" : "none"}`);
   
   if (!Array.isArray(slides)) {
     console.log("  - ERROR: slides is not an array");
     return res.status(400).json({ error: "slides must be an array" });
   }
   try {
-    const pptxBuffer = await buildPptx(slides, design_spec || {}, theme || "mckinsey");
+    const pptxBuffer = await buildPptx(slides, design_spec || {}, theme || "corporate");
     console.log(`  - SUCCESS: Generated PPTX (${pptxBuffer.length} bytes)`);
     res.set("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
     res.set("Content-Disposition", "attachment; filename=presentation.pptx");
@@ -40,7 +40,7 @@ app.post("/build", async (req, res) => {
 app.post("/preview", async (req, res) => {
   console.log(`[${new Date().toISOString()}] POST /preview - Received request`);
   const { slides, design_spec, theme } = req.body;
-  console.log(`  - Slides: ${slides?.length || 0}, Theme: ${theme || "mckinsey"}, Design Spec: ${design_spec ? "present" : "none"}`);
+  console.log(`  - Slides: ${slides?.length || 0}, Theme: ${theme || "corporate"}, Design Spec: ${design_spec ? "present" : "none"}`);
   
   if (!Array.isArray(slides)) {
     console.log("  - ERROR: slides is not an array");
@@ -53,7 +53,7 @@ app.post("/preview", async (req, res) => {
   try {
     // 1. Build PPTX
     console.log("  - Building PPTX...");
-    const pptxBuffer = await buildPptx(slides, design_spec || {}, theme || "mckinsey");
+    const pptxBuffer = await buildPptx(slides, design_spec || {}, theme || "corporate");
     console.log(`  - PPTX built: ${pptxBuffer.length} bytes`);
     const pptxPath = path.join(tmpDir, "presentation.pptx");
     fs.writeFileSync(pptxPath, pptxBuffer);

@@ -55,7 +55,7 @@ def _make_presentation(
     p.tenant_id = tenant_id or uuid.uuid4()
     p.status = status
     p.topic = "AI in Healthcare"
-    p.selected_theme = "mckinsey"
+    p.selected_theme = "corporate"
     p.slides = [
         {
             "slide_id": str(uuid.uuid4()),
@@ -456,7 +456,7 @@ class TestGetExportPreview:
             {"title": "Introduction", "content": {"bullets": ["Point A"]}},
             {"title": "Analysis", "content": {"bullets": ["Finding 1", "Finding 2"]}},
         ]
-        html = _build_preview_html(slides, "mckinsey")
+        html = _build_preview_html(slides, "corporate")
 
         assert "Introduction" in html
         assert "Analysis" in html
@@ -466,12 +466,12 @@ class TestGetExportPreview:
         """_build_preview_html uses theme-specific background color."""
         from app.api.v1.export_templates_admin import _build_preview_html
 
-        html_mckinsey = _build_preview_html([], "mckinsey")
-        html_deloitte = _build_preview_html([], "deloitte")
+        html_executive = _build_preview_html([], "executive")
+        html_professional = _build_preview_html([], "professional")
         html_dark = _build_preview_html([], "dark_modern")
 
-        assert "#003366" in html_mckinsey
-        assert "#86BC25" in html_deloitte
+        assert "#003366" in html_executive
+        assert "#86BC25" in html_professional
         assert "#1A1A2E" in html_dark
 
     def test_build_fallback_pdf_returns_valid_pdf_bytes(self):

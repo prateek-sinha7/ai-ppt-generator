@@ -604,11 +604,12 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
 def _build_preview_html(slides: List[Dict[str, Any]], theme: str) -> str:
     """Build a minimal HTML representation of slides for PDF rendering."""
     theme_colors = {
-        "mckinsey": {"bg": "#003366", "text": "#FFFFFF", "accent": "#0066CC"},
-        "deloitte": {"bg": "#86BC25", "text": "#FFFFFF", "accent": "#012169"},
+        "executive": {"bg": "#003366", "text": "#FFFFFF", "accent": "#0066CC"},
+        "professional": {"bg": "#86BC25", "text": "#FFFFFF", "accent": "#012169"},
         "dark_modern": {"bg": "#1A1A2E", "text": "#E0E0E0", "accent": "#16213E"},
+        "corporate": {"bg": "#002855", "text": "#FFFFFF", "accent": "#0078AC"},
     }
-    colors = theme_colors.get(theme, theme_colors["mckinsey"])
+    colors = theme_colors.get(theme, theme_colors["corporate"])
 
     slides_html = ""
     for slide in slides:

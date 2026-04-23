@@ -151,7 +151,7 @@ export interface ResolvedLayoutInstructions {
  */
 export function resolveLayoutInstructions(
   slide: SlideData,
-  fallbackTheme: Theme = 'mckinsey',
+  fallbackTheme: Theme = 'corporate',
 ): ResolvedLayoutInstructions {
   const instructions = slide.layout_instructions ?? {}
 
@@ -246,7 +246,7 @@ export function validateSlideLayout(slide: SlideData): ClientLayoutScore {
 /**
  * Get the theme color palette for a slide based on its layout_instructions.
  */
-export function getSlideThemeColors(slide: SlideData, fallbackTheme: Theme = 'mckinsey') {
+export function getSlideThemeColors(slide: SlideData, fallbackTheme: Theme = 'corporate') {
   const { theme } = resolveLayoutInstructions(slide, fallbackTheme)
   return themes[theme]
 }

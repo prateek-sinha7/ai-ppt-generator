@@ -225,9 +225,9 @@ class TestVisualRegressionSnapshots:
     Ensures consistent rendering of slide components across different themes.
     """
 
-    def test_title_slide_snapshot_mckinsey_theme(self):
+    def test_title_slide_snapshot_executive_theme(self):
         """
-        GIVEN a title slide with McKinsey theme
+        GIVEN a title slide with Executive theme
         WHEN rendered
         THEN output matches expected snapshot
         """
@@ -238,18 +238,18 @@ class TestVisualRegressionSnapshots:
             "title": "AI in Healthcare",
             "content": {"subtitle": "Clinical Decision Support Systems"},
             "visual_hint": "centered",
-            "theme": "mckinsey",
+            "theme": "executive",
         }
 
         # In a real implementation, this would render the component and compare
         # against a stored snapshot. For now, we verify the data structure.
         assert slide_data["type"] == "title"
         assert slide_data["visual_hint"] == "centered"
-        assert slide_data["theme"] == "mckinsey"
+        assert slide_data["theme"] == "executive"
 
-    def test_content_slide_snapshot_deloitte_theme(self):
+    def test_content_slide_snapshot_professional_theme(self):
         """
-        GIVEN a content slide with Deloitte theme
+        GIVEN a content slide with Professional theme
         WHEN rendered
         THEN output matches expected snapshot
         """
@@ -260,12 +260,12 @@ class TestVisualRegressionSnapshots:
             "title": "Key Challenges",
             "content": {"bullets": ["Challenge 1", "Challenge 2", "Challenge 3"]},
             "visual_hint": "bullet-left",
-            "theme": "deloitte",
+            "theme": "professional",
         }
 
         assert slide_data["type"] == "content"
         assert slide_data["visual_hint"] == "bullet-left"
-        assert slide_data["theme"] == "deloitte"
+        assert slide_data["theme"] == "professional"
         assert len(slide_data["content"]["bullets"]) == 3
 
     def test_chart_slide_snapshot_dark_modern_theme(self):
@@ -298,7 +298,7 @@ class TestVisualRegressionSnapshots:
         WHEN rendered with each theme
         THEN output matches expected snapshot for each theme
         """
-        for theme in ["mckinsey", "deloitte", "dark_modern"]:
+        for theme in ["executive", "professional", "dark_modern", "corporate"]:
             slide_data = {
                 "slide_id": str(uuid.uuid4()),
                 "slide_number": 4,
@@ -324,7 +324,7 @@ class TestVisualRegressionSnapshots:
         WHEN rendered with each theme
         THEN output matches expected snapshot for each theme
         """
-        for theme in ["mckinsey", "deloitte", "dark_modern"]:
+        for theme in ["executive", "professional", "dark_modern", "corporate"]:
             slide_data = {
                 "slide_id": str(uuid.uuid4()),
                 "slide_number": 5,
@@ -360,7 +360,7 @@ class TestVisualRegressionSnapshots:
                 "title": f"{slide_type.title()} Slide",
                 "content": {},
                 "visual_hint": "centered",
-                "theme": "mckinsey",
+                "theme": "corporate",
             }
 
             # Verify deterministic structure
@@ -651,7 +651,7 @@ class TestCostCeilingEnforcement:
             mock_ic_result.target_audience = "technical"
             mock_ic_result.selected_template_id = None
             mock_ic_result.selected_template_name = "Tech Briefing"
-            mock_ic_result.theme = "mckinsey"
+            mock_ic_result.theme = "corporate"
             mock_ic_result.compliance_context = []
             mock_ic_result.classification_method = "keyword"
             mock_ic.classify = AsyncMock(return_value=mock_ic_result)

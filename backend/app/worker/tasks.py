@@ -154,6 +154,7 @@ def generate_presentation_task(
     topic: str,
     tenant_id: str,
     idempotency_key: Optional[str] = None,
+    user_selected_theme: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Wrap the full multi-agent pipeline in a Celery task.
@@ -192,6 +193,7 @@ def generate_presentation_task(
                 topic=topic,
                 resume_from_checkpoint=True,
                 job_id=job_id,
+                user_selected_theme=user_selected_theme,
             )
         )
 
@@ -527,7 +529,7 @@ def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, An
 
     Args:
         slides_data: List of slide dictionaries from Slide_JSON
-        theme: Theme name (mckinsey, deloitte, dark_modern)
+        theme: Theme name (corporate, executive, professional, dark_modern)
         design_spec: DesignAgent output dict with palette, fonts, motif
 
     Returns:

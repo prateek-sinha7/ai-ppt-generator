@@ -50,7 +50,7 @@ export default function PresentationWorkflow() {
   const [state, setState] = useState<WorkflowState>('input')
   const [presentationId, setPresentationId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [_theme, setTheme] = useState<Theme>('mckinsey')
+  const [_theme, setTheme] = useState<Theme>('corporate')
   const [detectedContext, setDetectedContext] = useState<any>(null)
   const [errorType, setErrorType] = useState<ErrorType>('unknown')
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -60,6 +60,8 @@ export default function PresentationWorkflow() {
   const [totalSlides, setTotalSlides] = useState<number>(0)
   const [_designSpec, setDesignSpec] = useState<any>(null)
   const [previewReady, setPreviewReady] = useState(false)
+  const [previewStartTime, setPreviewStartTime] = useState<number | null>(null)
+  const [previewElapsedMs, setPreviewElapsedMs] = useState<number | undefined>(undefined)
 
   const sseState = useSSEStream(presentationId, state === 'generating')
 
@@ -82,6 +84,8 @@ export default function PresentationWorkflow() {
     setDetectedContext(null)
     setDesignSpec(null)
     setPreviewReady(false)
+    setPreviewStartTime(null)
+    setPreviewElapsedMs(undefined)
   }
 
   // Monitor SSE events
@@ -120,12 +124,13 @@ export default function PresentationWorkflow() {
     if (lastEvent.type === 'complete') {
       setState('completed')
       setProviderSwitch(null)
+      setPreviewStartTime(Date.now())
 
       if (presentationId) {
         apiClient
           .get(`/presentations/${presentationId}`)
           .then((response) => {
-            setTheme(response.data.theme || 'mckinsey')
+            setTheme(response.data.theme || 'corporate')
             setDesignSpec(response.data.design_spec || null)
             setDetectedContext({
               industry: response.data.detected_industry,
@@ -182,6 +187,8 @@ export default function PresentationWorkflow() {
     setQualityScore(null)
     setTotalSlides(0)
     setPreviewReady(false)
+    setPreviewStartTime(null)
+    setPreviewElapsedMs(undefined)
   }
 
   const handleCancel = async () => {
@@ -276,13 +283,19 @@ export default function PresentationWorkflow() {
               isConnected={false}
               previewRendering={!previewReady}
               previewReady={previewReady}
+              previewElapsedMs={previewElapsedMs}
             />
 
             {/* Slides — real PPTX images (pixel-perfect match with download) */}
             <PptxPreviewPanel
               presentationId={presentationId!}
               inline
-              onReady={() => setPreviewReady(true)}
+              onReady={() => {
+                setPreviewReady(true)
+                if (previewStartTime) {
+                  setPreviewElapsedMs(Date.now() - previewStartTime)
+                }
+              }}
             />
 
             {/* Actions */}

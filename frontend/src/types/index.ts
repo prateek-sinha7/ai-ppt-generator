@@ -17,7 +17,7 @@ export type ChartType = 'bar' | 'line' | 'pie'
 
 export type TransitionType = 'fade' | 'slide' | 'none'
 
-export type Theme = 'mckinsey' | 'deloitte' | 'dark-modern'
+export type Theme = 'executive' | 'professional' | 'dark-modern' | 'corporate'
 
 export interface ChartDataPoint {
   label: string

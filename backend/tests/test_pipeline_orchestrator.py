@@ -279,7 +279,7 @@ class TestCheckpointRecovery:
                                     "sub_sector": None, "target_audience": "general",
                                     "selected_template_id": None,
                                     "selected_template_name": "Retail",
-                                    "theme": "deloitte",
+                                    "theme": "professional",
                                     "compliance_context": [],
                                     "classification_method": "semantic"}
         pre_ctx.optimized_prompt = {"prompt_id": "x", "version": "1.0.0",

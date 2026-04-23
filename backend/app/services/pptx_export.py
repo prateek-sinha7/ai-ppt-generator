@@ -3,7 +3,7 @@ PPTX Export Service - Enterprise-grade PowerPoint generation from Slide_JSON.
 
 This service implements:
 - Task 24.1: python-pptx slide builder mapping each slide type to appropriate PPTX layout
-- Task 24.2: Theme application preserving McKinsey/Deloitte/Dark Modern color schemes
+- Task 24.2: Theme application preserving Corporate/Executive/Professional/Dark Modern color schemes
 - Task 24.3: Chart rendering in PPTX (bar/line/pie/area/scatter/stacked_bar/donut)
 - Task 24.4: Table rendering in PPTX with proper formatting
 - Task 24.5: Transition mapping (fade→Fade, slide→Push, none→no transition)
@@ -44,7 +44,7 @@ logger = structlog.get_logger(__name__)
 class ThemeColors:
     """Color schemes for each presentation theme."""
 
-    MCKINSEY = {
+    EXECUTIVE = {
         "primary": RGBColor(0, 47, 108),        # Navy blue
         "secondary": RGBColor(0, 119, 200),     # Light blue
         "accent": RGBColor(255, 184, 28),       # Gold
@@ -68,7 +68,7 @@ class ThemeColors:
         ],
     }
 
-    DELOITTE = {
+    PROFESSIONAL = {
         "primary": RGBColor(0, 0, 0),           # Black
         "secondary": RGBColor(134, 188, 37),    # Lime green
         "accent": RGBColor(0, 180, 204),        # Teal
@@ -116,16 +116,41 @@ class ThemeColors:
         ],
     }
 
+    CORPORATE = {
+        "primary": RGBColor(0, 40, 85),         # Deep navy blue
+        "secondary": RGBColor(0, 82, 136),      # Medium navy
+        "accent": RGBColor(0, 120, 172),         # Steel blue (single accent)
+        "accent2": RGBColor(70, 130, 180),       # Muted steel blue
+        "text": RGBColor(33, 33, 33),            # Near-black
+        "text_light": RGBColor(100, 100, 100),   # Medium gray
+        "background": RGBColor(255, 255, 255),   # White
+        "surface": RGBColor(245, 247, 250),      # Very light blue-gray
+        "divider": RGBColor(210, 218, 226),      # Light gray divider
+        "kpi_bg": RGBColor(0, 40, 85),           # Navy KPI box
+        "kpi_text": RGBColor(255, 255, 255),     # White KPI text
+        "header_bar": RGBColor(0, 40, 85),       # Navy header accent bar
+        "chart_colors": [
+            RGBColor(0, 40, 85),                 # Deep navy
+            RGBColor(0, 82, 136),                # Medium navy
+            RGBColor(0, 120, 172),               # Steel blue
+            RGBColor(70, 130, 180),              # Muted steel
+            RGBColor(140, 170, 200),             # Light steel
+            RGBColor(180, 200, 220),             # Pale blue-gray
+            RGBColor(100, 100, 100),             # Neutral gray
+        ],
+    }
+
     @classmethod
     def get_theme(cls, theme_name: str) -> Dict[str, Any]:
         """Get theme colors by name."""
         theme_map = {
-            "mckinsey": cls.MCKINSEY,
-            "deloitte": cls.DELOITTE,
+            "executive": cls.EXECUTIVE,
+            "professional": cls.PROFESSIONAL,
             "dark_modern": cls.DARK_MODERN,
             "dark-modern": cls.DARK_MODERN,
+            "corporate": cls.CORPORATE,
         }
-        return theme_map.get(theme_name.lower(), cls.MCKINSEY)
+        return theme_map.get(theme_name.lower(), cls.CORPORATE)
 
 
 # ---------------------------------------------------------------------------
@@ -226,12 +251,12 @@ class PPTXBuilder:
     ACCENT_BAR_HEIGHT = Inches(0.07)
     ACCENT_BAR_TOP = Inches(1.25)
 
-    def __init__(self, theme: str = "mckinsey"):
+    def __init__(self, theme: str = "corporate"):
         """
         Initialize PPTX builder.
 
         Args:
-            theme: Theme name (mckinsey, deloitte, dark_modern)
+            theme: Theme name (corporate, executive, professional, dark_modern)
         """
         self.theme_name = theme
         self.theme_colors = ThemeColors.get_theme(theme)
@@ -1189,7 +1214,7 @@ class PPTXBuilder:
 # Main Export Function
 # ---------------------------------------------------------------------------
 
-def build_pptx(slides_data: List[Dict[str, Any]], theme: str = "mckinsey") -> bytes:
+def build_pptx(slides_data: List[Dict[str, Any]], theme: str = "corporate") -> bytes:
     """
     Build PPTX file from Slide_JSON data.
     
@@ -1197,7 +1222,7 @@ def build_pptx(slides_data: List[Dict[str, Any]], theme: str = "mckinsey") -> by
     
     Args:
         slides_data: List of slide dictionaries from Slide_JSON
-        theme: Theme name (mckinsey, deloitte, dark_modern)
+        theme: Theme name (corporate, executive, professional, dark_modern)
         
     Returns:
         PPTX file as bytes

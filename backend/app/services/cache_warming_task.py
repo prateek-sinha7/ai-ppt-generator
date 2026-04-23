@@ -100,7 +100,7 @@ class CacheWarmingTask:
             provider_type=provider_type,
             model_name="",  # model name not tracked in settings; hash on type only
             prompt_version=prompt_version,
-            theme="mckinsey",  # warm with the default theme
+            theme="corporate",  # warm with the default theme
         )
 
         logger.info(
@@ -184,7 +184,7 @@ class CacheWarmingTask:
             provider_type=settings.LLM_PRIMARY_PROVIDER,
             model_name="",
             prompt_version=PromptEngineeringAgent.PROMPT_VERSION,
-            theme="mckinsey",
+            theme="corporate",
         )
 
 

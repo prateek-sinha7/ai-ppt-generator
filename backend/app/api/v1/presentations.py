@@ -109,6 +109,7 @@ def _add_rate_limit_headers(response: Response, info: Dict[str, int]) -> None:
 
 class CreatePresentationRequest(BaseModel):
     topic: str = Field(..., min_length=1, max_length=5000, description="Presentation topic or pasted content")
+    theme: Optional[str] = Field(None, description="Optional theme preference: corporate, executive, professional, dark-modern")
 
     @field_validator("topic")
     @classmethod
@@ -116,6 +117,16 @@ class CreatePresentationRequest(BaseModel):
         if not v.strip():
             raise ValueError("topic must not be blank")
         return v.strip()
+
+    @field_validator("theme")
+    @classmethod
+    def theme_must_be_valid(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        valid = {"corporate", "executive", "professional", "dark-modern", "dark_modern"}
+        if v.strip().lower() not in valid:
+            raise ValueError(f"theme must be one of: corporate, executive, professional, dark-modern")
+        return v.strip().lower()
 
 
 class CreatePresentationResponse(BaseModel):
@@ -162,13 +173,15 @@ class RegenerateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 _AGENT_PROGRESS: Dict[str, int] = {
-    "industry_classifier": 10,
-    "storyboarding": 20,
-    "research": 35,
-    "data_enrichment": 50,
-    "prompt_engineering": 60,
-    "llm_provider": 75,
-    "validation": 85,
+    "industry_classifier": 8,
+    "design": 16,
+    "storyboarding": 24,
+    "research": 36,
+    "data_enrichment": 48,
+    "prompt_engineering": 56,
+    "llm_provider": 70,
+    "validation": 80,
+    "visual_refinement": 88,
     "quality_scoring": 95,
 }
 
@@ -384,6 +397,7 @@ async def create_presentation(
             "topic": body.topic,
             "tenant_id": str(current_user.tenant_id),
             "idempotency_key": idempotency_key,
+            "user_selected_theme": body.theme,
         },
         task_id=str(execution.id),
     )

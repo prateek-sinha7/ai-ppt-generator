@@ -141,9 +141,9 @@ class TestThemeSelection:
     """Test theme selection"""
     
     def test_executive_theme(self):
-        """Test McKinsey theme for executives"""
+        """Test executive theme for executives"""
         theme = industry_classifier._select_theme("healthcare", "executives")
-        assert theme == "mckinsey"
+        assert theme == "executive"
     
     def test_technical_theme(self):
         """Test Dark Modern theme for technical audience"""
@@ -151,9 +151,9 @@ class TestThemeSelection:
         assert theme == "dark_modern"
     
     def test_default_theme(self):
-        """Test Deloitte theme as default"""
+        """Test professional theme for finance analysts"""
         theme = industry_classifier._select_theme("finance", "analysts")
-        assert theme == "deloitte"
+        assert theme == "professional"
 
 
 @pytest.mark.asyncio
@@ -171,7 +171,7 @@ class TestFullClassification:
         assert context.confidence > 0.0
         assert context.target_audience in ["executives", "analysts", "technical", "general"]
         assert context.selected_template_name is not None
-        assert context.theme in ["mckinsey", "deloitte", "dark_modern"]
+        assert context.theme in ["executive", "professional", "dark_modern", "corporate"]
         assert context.classification_method in ["keyword", "semantic", "llm"]
     
     async def test_finance_classification(self):

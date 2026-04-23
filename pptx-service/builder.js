@@ -16,7 +16,7 @@ const mkShadowSm = () => ({ type: "outer", blur: 4, offset: 2, angle: 135, color
 function resolveDesign(designSpec, theme) {
   // Built-in palettes — dark, rich, enterprise-grade
   const THEMES = {
-    mckinsey: {
+    executive: {
       navy:    "0D1B2A", teal:    "00C9B1", tealDk:  "009B89",
       blue:    "1B4F8A", blueLt:  "2A6FC4", white:   "FFFFFF",
       offwhite:"F0F4F8", slate:   "64748B", slateL:  "94A3B8",
@@ -27,7 +27,7 @@ function resolveDesign(designSpec, theme) {
       chartColors:["1B4F8A","00C9B1","FFB81C","22C55E","EF4444","818CF8","F97316"],
       fontHeader:"Calibri", fontBody:"Calibri",
     },
-    deloitte: {
+    professional: {
       navy:    "000000", teal:    "86BC25", tealDk:  "5A8A00",
       blue:    "00B4CC", blueLt:  "33C9DD", white:   "FFFFFF",
       offwhite:"F5F5F5", slate:   "64748B", slateL:  "94A3B8",
@@ -49,9 +49,20 @@ function resolveDesign(designSpec, theme) {
       chartColors:["CADCFC","7EC8E3","A8D8EA","4A8FE4","F5A623","22C55E","EF4444"],
       fontHeader:"Calibri", fontBody:"Calibri",
     },
+    corporate: {
+      navy:    "002855", teal:    "0078AC", tealDk:  "005288",
+      blue:    "005288", blueLt:  "4682B4", white:   "FFFFFF",
+      offwhite:"F5F7FA", slate:   "646464", slateL:  "8C8C8C",
+      dark:    "002855", gold:    "0078AC", green:   "4682B4",
+      red:     "646464", cardBg:  "002855", cardBg2: "003366",
+      accent:  "0078AC", primary: "002855", secondary:"005288",
+      text:    "212121", textLight:"646464", bg:"FFFFFF", bgDark:"002855",
+      chartColors:["002855","005288","0078AC","4682B4","8CAAC8","B4CCE0","646464"],
+      fontHeader:"Calibri", fontBody:"Calibri",
+    },
   };
 
-  const base = THEMES[theme] || THEMES["mckinsey"];
+  const base = THEMES[theme] || THEMES["corporate"];
   if (!designSpec || !designSpec.primary_color) return base;
 
   const h = (v, fb) => {

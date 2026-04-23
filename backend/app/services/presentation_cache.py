@@ -68,7 +68,7 @@ def _make_slide_json_key(
     Key components:
       - topic            : normalised (stripped, lower-cased)
       - industry         : normalised
-      - theme            : mckinsey | deloitte | dark_modern
+      - theme            : corporate | executive | professional | dark_modern
       - provider_config_hash : sha256 of provider type + model name
       - prompt_version   : e.g. "1.0.0"
     """
@@ -430,7 +430,7 @@ class PresentationCacheService:
         provider_type: str,
         model_name: str,
         prompt_version: str,
-        theme: str = "mckinsey",
+        theme: str = "corporate",
     ) -> Dict[str, int]:
         """
         Warm the cache for a set of top topics per industry.

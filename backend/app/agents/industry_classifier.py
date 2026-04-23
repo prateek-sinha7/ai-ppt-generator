@@ -472,41 +472,42 @@ Return your classification as JSON."""
         """
         Select presentation theme based on industry and audience.
 
-        Priority: dark_modern is the default. Agent selects the best fit:
-        - dark_modern: tech, fintech, data-heavy, technical audiences (default)
-        - mckinsey:    strategy, consulting, executive C-suite presentations
-        - deloitte:    finance, professional services, analyst audiences
+        Priority: corporate is the default. Agent selects the best fit:
+        - corporate:     clean enterprise navy-and-white for all general use (default)
+        - dark_modern:   tech, fintech, data-heavy, technical audiences
+        - executive:     strategy, consulting, executive C-suite presentations
+        - professional:  finance, professional services, analyst audiences
 
         Returns:
-            Theme name: "dark_modern" | "mckinsey" | "deloitte"
+            Theme name: "corporate" | "dark_modern" | "executive" | "professional"
         """
         # Technical audiences → dark modern
         if audience == "technical":
             return "dark_modern"
 
-        # Executive / C-suite strategy content → McKinsey
+        # Executive / C-suite strategy content → executive
         if audience == "executives":
-            # For executives, prefer McKinsey for most industries except pure tech
+            # For executives, prefer executive for most industries except pure tech
             if industry in ("technology", "fintech"):
                 return "dark_modern"
-            # All other industries with executive audience get McKinsey
-            return "mckinsey"
+            # All other industries with executive audience get executive
+            return "executive"
 
-        # Analyst / finance audiences → Deloitte
+        # Analyst / finance audiences → professional
         if audience == "analysts":
             if industry in ("finance", "insurance", "healthcare"):
-                return "deloitte"
+                return "professional"
 
         # Industry-based selection for remaining cases
-        if industry in ("technology", "fintech", "automobile"):
+        if industry in ("technology", "fintech"):
             return "dark_modern"
         if industry in ("finance", "insurance"):
-            return "deloitte"
+            return "professional"
         if industry in ("consulting", "strategy"):
-            return "mckinsey"
+            return "executive"
 
-        # Default: dark_modern
-        return "dark_modern"
+        # Default: corporate
+        return "corporate"
     
     async def classify(
         self,

@@ -507,7 +507,7 @@ def score_presentation_layout(
 
 def generate_layout_instructions(
     slide: dict[str, Any],
-    theme: str = "mckinsey",
+    theme: str = "corporate",
 ) -> dict[str, str]:
     """
     Generate layout_instructions for a slide using design token names.
@@ -518,7 +518,7 @@ def generate_layout_instructions(
     Token names reference frontend/src/styles/tokens.ts:
     - Spacing tokens: "0", "1", "2", "4", "6", "8", "10", "12", "16", "20", "24"
     - Typography tokens: "slide-title", "slide-subtitle", "slide-body", "slide-caption"
-    - Theme tokens: "mckinsey", "deloitte", "dark-modern"
+    - Theme tokens: "corporate", "executive", "professional", "dark-modern"
 
     Args:
         slide: Slide dictionary
@@ -577,7 +577,7 @@ def generate_layout_instructions(
 
 def apply_layout_to_slide(
     slide: dict[str, Any],
-    theme: str = "mckinsey",
+    theme: str = "corporate",
 ) -> dict[str, Any]:
     """
     Apply full layout decisions to a slide in-place (returns new dict).
@@ -621,7 +621,7 @@ def apply_layout_to_slide(
 
 def apply_layout_to_presentation(
     slides: list[dict[str, Any]],
-    theme: str = "mckinsey",
+    theme: str = "corporate",
 ) -> list[dict[str, Any]]:
     """
     Apply layout decisions to all slides in a presentation.
@@ -809,19 +809,19 @@ class LayoutDecisionEngine:
         return score_presentation_layout(presentation_id, slides)
 
     def generate_instructions(
-        self, slide: dict[str, Any], theme: str = "mckinsey"
+        self, slide: dict[str, Any], theme: str = "corporate"
     ) -> dict[str, str]:
         """Generate layout_instructions using token names."""
         return generate_layout_instructions(slide, theme)
 
     def apply_to_slide(
-        self, slide: dict[str, Any], theme: str = "mckinsey"
+        self, slide: dict[str, Any], theme: str = "corporate"
     ) -> dict[str, Any]:
         """Apply full layout decisions to a slide."""
         return apply_layout_to_slide(slide, theme)
 
     def apply_to_presentation(
-        self, slides: list[dict[str, Any]], theme: str = "mckinsey"
+        self, slides: list[dict[str, Any]], theme: str = "corporate"
     ) -> list[dict[str, Any]]:
         """Apply layout decisions to all slides."""
         return apply_layout_to_presentation(slides, theme)

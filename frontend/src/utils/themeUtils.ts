@@ -25,9 +25,10 @@ export function getThemeColors(theme: Theme): SlideColors {
   const t = themes[theme]
   // Derive bgDark from the primary color for static themes
   const bgDarkMap: Record<Theme, string> = {
-    mckinsey: '#002040',
-    deloitte: '#000000',
+    executive: '#002040',
+    professional: '#000000',
     'dark-modern': '#0A0A0A',
+    corporate: '#002855',
   }
   return {
     ...t,
