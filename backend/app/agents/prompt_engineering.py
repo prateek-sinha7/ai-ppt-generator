@@ -88,8 +88,8 @@ CONTENT DENSITY — Every slide must be packed with real, specific, quantified i
 
 SLIDE TYPES AND REQUIREMENTS:
 - "title": Compelling title + subtitle + 4 KPI badges in bullets (e.g. "$2.4T market", "45% CAGR", "68 countries", "Fortune 500 adoption")
-- "content": 2-4 concise bullets with specific data. Include icon_name and highlight_text
-- "chart": MUST specify chart_type as one of: "bar", "line", "pie", "scatter", "area". Use 6-8 data points with real values. Include bullets with 3-4 analytical insights on the left panel
+- "content": 2-4 concise bullets with specific data. Include icon_name and highlight_text. MAX 4 bullets, MAX 8 words per bullet.
+- "chart": EXACTLY 3 chart slides total. MUST specify chart_type as assigned. Use 5-8 data points with real values. Include bullets with 3-4 analytical insights on the left panel
 - "table": 4-6 rows, 3-5 columns. Use real comparative data. Include highlight_text
 - "comparison": **CRITICAL** MUST include comparison_data with left_column and right_column, each containing heading and 4-5 specific bullets. This is a REQUIRED structure - do NOT skip or simplify. Example:
   {
@@ -100,12 +100,23 @@ SLIDE TYPES AND REQUIREMENTS:
   }
 - "metric": Large KPI with trend, label, and 4 context bullets with supporting data
 
-CHART VARIETY — Do NOT use only bar charts. Vary chart types:
-- Use "line" for trends over time (quarterly/annual data)
-- Use "pie" for market share or composition breakdowns
-- Use "bar" for comparisons across categories
-- Use "area" for cumulative growth or stacked data
-- Use "scatter" for correlation analysis
+CHART VARIETY — CRITICAL: Follow chart type assignments exactly when provided:
+- When specific chart types are assigned to slides, use them EXACTLY as specified
+- LIMIT: Only 3 chart slides total in the entire presentation
+- If no assignments provided, vary chart types systematically:
+  - Use "line" for trends over time (quarterly/annual data)
+  - Use "pie" for market share or composition breakdowns (max 6 segments)
+  - Use "bar" for comparisons across categories
+  - Use "area" for cumulative growth or stacked data
+  - Use "stacked_bar" for part-to-whole over categories
+  - Use "donut" for composition with center metric
+  - Use "scatter" for correlation analysis
+
+CONTENT CONSTRAINTS — CRITICAL for proper layout:
+- Titles: MAX 8 words (will be truncated if longer)
+- Bullets: MAX 4 bullets per slide, MAX 8 words per bullet
+- Chart data: MAX 8 data points, MIN 3 data points
+- Keep content concise to prevent layout overflow
 
 VISUAL RICHNESS:
 - Every content/metric slide MUST have icon_name (choose from: TrendingUp, TrendingDown, Users, Shield, Zap, Target, Award, BarChart2, Globe, Layers, AlertTriangle, CheckCircle, DollarSign, Activity, Briefcase, Building, Database, Cpu, Network, Lock, Unlock, Star, Flag, Clock, Calendar, Map, Search, Settings, Tool, Package, Truck, Heart, Brain, Lightbulb, Rocket, Fire, Crown, Diamond)
@@ -309,12 +320,15 @@ SLIDE TYPES:
 - "comparison": 4-5 bullets per column with specific, contrasting data points
 - "metric": Large KPI with metric_value, metric_label, metric_trend, and 4 context bullets
 
-CHART VARIETY — Do NOT use only bar charts:
-- Use "line" for trends over time
-- Use "pie" for market share or composition
-- Use "bar" for category comparisons
-- Use "area" for cumulative growth
-- Use "stacked_bar" for part-to-whole over time
+CHART VARIETY — CRITICAL: Follow chart type assignments exactly when provided:
+- When specific chart types are assigned to slides, use them EXACTLY as specified
+- If no assignments provided, vary chart types systematically:
+  - Use "line" for trends over time
+  - Use "pie" for market share or composition (max 6 segments)
+  - Use "bar" for category comparisons
+  - Use "area" for cumulative growth
+  - Use "stacked_bar" for part-to-whole over categories
+  - Use "donut" for composition with center metric
 
 VISUAL RICHNESS:
 - Every content/metric slide MUST have icon_name (e.g. TrendingUp, Users, Shield, Target, Award, BarChart2, Globe, DollarSign, Activity, Briefcase, Database, Rocket)
@@ -460,13 +474,15 @@ CONTENT REQUIREMENTS:
 
 SLIDE TYPES:
 - "title": title + subtitle + 3-4 KPI bullets (e.g. "$2.4T market", "45% CAGR")
-- "content": 2-4 concise bullets + icon_name + highlight_text + speaker_notes
-- "chart": chart_type ("bar"/"line"/"pie"/"area") + chart_data [{label, value}] with REAL numbers + 2-3 analytical bullets + highlight_text
+- "content": 2-4 concise bullets + icon_name + highlight_text + speaker_notes. MAX 4 bullets, MAX 8 words per bullet.
+- "chart": EXACTLY 3 chart slides total. chart_type ("bar"/"line"/"pie") + chart_data [{label, value}] with REAL numbers + 2-3 analytical bullets + highlight_text
 - "table": table_data {headers, rows} with REAL data + highlight_text
 - "comparison": comparison_data with left_column {heading, bullets} and right_column {heading, bullets}
 - "metric": metric_value + metric_label + metric_trend + 3-4 context bullets
 
-CHART VARIETY: Use "line" for trends, "pie" for market share, "bar" for comparisons, "area" for growth.
+CHART VARIETY: Follow chart type assignments exactly when provided. Otherwise use "line" for trends, "pie" for market share, "bar" for comparisons.
+
+CONTENT LIMITS: Titles MAX 8 words. Bullets MAX 4 per slide, MAX 8 words each. Charts MAX 8 data points.
 
 EVERY slide needs: speaker_notes (3-4 sentences), highlight_text, icon_name (for content/metric slides).
 
@@ -603,10 +619,14 @@ class PromptEngineeringAgent:
     3. Validate token limits
     4. Generate prompts for failover scenarios
     5. Version prompts with metadata
+    6. Ensure chart type diversity across slides
     """
     
     # Current prompt version
     PROMPT_VERSION = "1.0.0"
+    
+    # Chart type rotation for diversity - Strategic 3-chart approach
+    CHART_TYPES = ["bar", "line", "pie"]  # Exactly 3 strategic chart types
     
     def __init__(self):
         """Initialize the Prompt Engineering Agent"""
@@ -658,6 +678,71 @@ class PromptEngineeringAgent:
             # Keep the beginning
             return text[:char_limit] + "..."
     
+    def _generate_chart_type_assignments(self, presentation_plan: Dict[str, Any]) -> Dict[int, str]:
+        """
+        Generate chart type assignments for exactly 3 chart slides to ensure diversity.
+        
+        Strategic chart type assignment:
+        - First chart (Problem/Analysis): "bar" - best for comparisons and market data
+        - Second chart (Analysis): "line" - best for trends and growth over time  
+        - Third chart (Evidence): "pie" - best for composition and market share
+        
+        Args:
+            presentation_plan: Storyboarding agent output with slide structure
+            
+        Returns:
+            Dictionary mapping slide_number -> chart_type for exactly 3 chart slides
+        """
+        chart_assignments = {}
+        chart_slide_count = 0
+        
+        # Specific chart types for strategic placement
+        strategic_chart_types = ["bar", "line", "pie"]
+        
+        # Get slides from presentation plan
+        sections = presentation_plan.get("sections", [])
+        slide_number = 1
+        
+        for section in sections:
+            slide_types = section.get("slide_types", [])
+            for slide_type in slide_types:
+                if slide_type == "chart" and chart_slide_count < 3:
+                    # Assign specific chart type based on position
+                    chart_type = strategic_chart_types[chart_slide_count]
+                    chart_assignments[slide_number] = chart_type
+                    chart_slide_count += 1
+                slide_number += 1
+        
+        return chart_assignments
+
+    def _format_chart_type_guidance(self, chart_assignments: Dict[int, str]) -> str:
+        """
+        Format chart type assignments into guidance text for the LLM.
+        
+        Args:
+            chart_assignments: Dictionary mapping slide_number -> chart_type
+            
+        Returns:
+            Formatted guidance string with strategic rationale
+        """
+        if not chart_assignments:
+            return "No chart slides in this presentation."
+        
+        guidance_lines = ["CHART TYPE ASSIGNMENTS (MUST FOLLOW EXACTLY):"]
+        
+        # Add specific assignments
+        for slide_num, chart_type in sorted(chart_assignments.items()):
+            guidance_lines.append(f"- Slide {slide_num}: chart_type = \"{chart_type}\"")
+        
+        # Add strategic rationale
+        guidance_lines.append("\nSTRATEGIC CHART TYPE RATIONALE:")
+        guidance_lines.append("- bar: Use for market comparisons, competitive analysis, category breakdowns")
+        guidance_lines.append("- line: Use for trends over time, growth patterns, performance tracking")
+        guidance_lines.append("- pie: Use for market share, composition analysis, percentage breakdowns")
+        guidance_lines.append("\nIMPORTANT: Use EXACTLY these chart types. Do not substitute or add additional charts.")
+        
+        return "\n".join(guidance_lines)
+
     def _format_research_findings(self, research_findings: Dict[str, Any]) -> str:
         """
         Format research findings for prompt inclusion.
@@ -764,19 +849,27 @@ Domain Terminology: {', '.join(terminology)}"""
     def _format_design_spec(self, design_spec: Optional[Dict[str, Any]]) -> str:
         """
         Format design spec for prompt inclusion.
-        Tells the LLM what colors, fonts, and motif to reference in content.
+        Always references Hexaware brand colors — the palette_name determines
+        which of the two Hexaware themes is active.
         """
         if not design_spec:
             return ""
 
+        palette = design_spec.get("palette_name", "Hexaware Corporate")
+        is_professional = "professional" in str(palette).lower()
+
+        primary = "0D0D0D" if is_professional else "0A2240"
+        accent  = "FF6B35" if is_professional else "000080"
+        font_h  = design_spec.get("font_header", "Arial" if is_professional else "Calibri")
+        font_b  = design_spec.get("font_body",   "Arial" if is_professional else "Calibri")
+
         lines = [
-            "\nDESIGN SYSTEM (use these in your content decisions):",
-            f"  Palette: {design_spec.get('palette_name', 'Custom')}",
-            f"  Primary color: #{design_spec.get('primary_color', '002F6C')} (titles, headers)",
-            f"  Accent color: #{design_spec.get('accent_color', 'FFB81C')} (callouts, highlights)",
-            f"  Motif: {design_spec.get('motif', 'left-bar')}",
-            f"  Font header: {design_spec.get('font_header', 'Georgia')}",
-            f"  Font body: {design_spec.get('font_body', 'Calibri')}",
+            "\nDESIGN SYSTEM (Hexaware brand — do not change colors):",
+            f"  Palette: {palette}",
+            f"  Primary color: #{primary} (titles, headers)",
+            f"  Accent color: #{accent} (callouts, highlights)",
+            f"  Font header: {font_h}",
+            f"  Font body: {font_b}",
             "",
             "  When writing highlight_text: make it punchy and specific to the data.",
             "  When choosing icon_name: pick icons that match the content theme.",
@@ -823,13 +916,17 @@ Domain Terminology: {', '.join(terminology)}"""
         limits = PROVIDER_TOKEN_LIMITS.get(provider_type, PROVIDER_TOKEN_LIMITS[ProviderType.local])
         recommended_tokens = limits["recommended_prompt_tokens"]
         
+        # Generate chart type assignments for diversity
+        chart_assignments = self._generate_chart_type_assignments(presentation_plan)
+        chart_guidance = self._format_chart_type_guidance(chart_assignments)
+        
         # Format context sections
         research_str = self._format_research_findings(research_findings)
         plan_str = self._format_presentation_plan(presentation_plan)
         data_str = self._format_data_enrichment(data_enrichment or {})
         design_str = self._format_design_spec(design_spec)
         
-        # Build user prompt
+        # Build user prompt with chart type guidance
         user_prompt = template.user_prompt_template.format(
             topic=topic,
             industry=industry,
@@ -837,6 +934,10 @@ Domain Terminology: {', '.join(terminology)}"""
             presentation_plan=plan_str,
             data_enrichment=data_str + design_str,
         )
+        
+        # Add chart type guidance to user prompt
+        if chart_assignments:
+            user_prompt = f"{user_prompt}\n\n{chart_guidance}"
         
         # Estimate tokens
         system_tokens = self._estimate_tokens(template.system_prompt)
@@ -861,14 +962,14 @@ Domain Terminology: {', '.join(terminology)}"""
                     presentation_plan=plan_str,
                     data_enrichment="",
                 )
-            )
+            ) - self._estimate_tokens(chart_guidance)  # Reserve tokens for chart guidance
             
             if available_tokens > 0:
                 data_str = self._truncate_to_token_limit(data_str, available_tokens)
             else:
                 data_str = ""
             
-            # Rebuild user prompt
+            # Rebuild user prompt with chart guidance preserved
             user_prompt = template.user_prompt_template.format(
                 topic=topic,
                 industry=industry,
@@ -876,6 +977,10 @@ Domain Terminology: {', '.join(terminology)}"""
                 presentation_plan=plan_str,
                 data_enrichment=data_str,
             )
+            
+            # Re-add chart type guidance after truncation
+            if chart_assignments:
+                user_prompt = f"{user_prompt}\n\n{chart_guidance}"
             
             total_tokens = system_tokens + self._estimate_tokens(user_prompt)
         

@@ -244,7 +244,7 @@ async def trigger_pptx_export(
         )
 
     slides_data = presentation.slides or []
-    theme = presentation.selected_theme or "dark_modern"
+    theme = presentation.selected_theme or "hexaware_corporate"
     design_spec = presentation.design_spec or {}
 
     # Build PPTX bytes — run in thread pool to avoid blocking the async event loop
@@ -306,7 +306,7 @@ async def get_pptx_preview_images(
     slides_data = presentation.slides or []
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
-    theme = presentation.selected_theme or "dark_modern"
+    theme = presentation.selected_theme or "hexaware_corporate"
     design_spec = presentation.design_spec or {}
 
     logger.info(
@@ -450,7 +450,7 @@ async def download_pptx(
         )
 
     slides_data = presentation.slides or []
-    theme = presentation.selected_theme or "dark_modern"
+    theme = presentation.selected_theme or "hexaware_corporate"
     design_spec = presentation.design_spec or {}
 
     import asyncio
@@ -541,7 +541,7 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
 
-    html_content = _build_preview_html(slides_data, presentation.selected_theme or "dark_modern")
+    html_content = _build_preview_html(slides_data, presentation.selected_theme or "hexaware_corporate")
 
     pdf_bytes: Optional[bytes] = None
 
@@ -604,12 +604,10 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
 def _build_preview_html(slides: List[Dict[str, Any]], theme: str) -> str:
     """Build a minimal HTML representation of slides for PDF rendering."""
     theme_colors = {
-        "executive": {"bg": "#003366", "text": "#FFFFFF", "accent": "#0066CC"},
-        "professional": {"bg": "#86BC25", "text": "#FFFFFF", "accent": "#012169"},
-        "dark_modern": {"bg": "#1A1A2E", "text": "#E0E0E0", "accent": "#16213E"},
-        "corporate": {"bg": "#002855", "text": "#FFFFFF", "accent": "#0078AC"},
+        "hexaware_corporate":    {"bg": "#0A2240", "text": "#FFFFFF", "accent": "#000080"},
+        "hexaware_professional": {"bg": "#0D0D0D", "text": "#FFFFFF", "accent": "#FF6B35"},
     }
-    colors = theme_colors.get(theme, theme_colors["corporate"])
+    colors = theme_colors.get(theme, theme_colors["hexaware_corporate"])
 
     slides_html = ""
     for slide in slides:

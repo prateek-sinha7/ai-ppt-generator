@@ -470,44 +470,26 @@ Return your classification as JSON."""
     
     def _select_theme(self, industry: str, audience: str) -> str:
         """
-        Select presentation theme based on industry and audience.
+        Select the Hexaware presentation palette based on industry and audience.
 
-        Priority: corporate is the default. Agent selects the best fit:
-        - corporate:     clean enterprise navy-and-white for all general use (default)
-        - dark_modern:   tech, fintech, data-heavy, technical audiences
-        - executive:     strategy, consulting, executive C-suite presentations
-        - professional:  finance, professional services, analyst audiences
+        Only two palettes are supported:
+        - hexaware_corporate:    deep navy + electric blue. Formal enterprise, board,
+                                 client proposals, strategy, consulting, general use.
+        - hexaware_professional: near-black + Hexaware orange. Analyst briefings,
+                                 technical deep-dives, finance, innovation showcases.
 
         Returns:
-            Theme name: "corporate" | "dark_modern" | "executive" | "professional"
+            Theme name: "hexaware_corporate" | "hexaware_professional"
         """
-        # Technical audiences → dark modern
-        if audience == "technical":
-            return "dark_modern"
+        # Analyst / finance / technical audiences → Professional palette
+        if audience in ("analysts", "technical"):
+            return "hexaware_professional"
 
-        # Executive / C-suite strategy content → executive
-        if audience == "executives":
-            # For executives, prefer executive for most industries except pure tech
-            if industry in ("technology", "fintech"):
-                return "dark_modern"
-            # All other industries with executive audience get executive
-            return "executive"
+        if industry in ("finance", "insurance", "technology", "fintech"):
+            return "hexaware_professional"
 
-        # Analyst / finance audiences → professional
-        if audience == "analysts":
-            if industry in ("finance", "insurance", "healthcare"):
-                return "professional"
-
-        # Industry-based selection for remaining cases
-        if industry in ("technology", "fintech"):
-            return "dark_modern"
-        if industry in ("finance", "insurance"):
-            return "professional"
-        if industry in ("consulting", "strategy"):
-            return "executive"
-
-        # Default: corporate
-        return "corporate"
+        # Everything else → Corporate palette (default)
+        return "hexaware_corporate"
     
     async def classify(
         self,

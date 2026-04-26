@@ -84,7 +84,7 @@ AGENT_LATENCY_BUDGETS: Dict[AgentName, float] = {
     AgentName.RESEARCH: 60.0,  # Increased from 30s - LLM call can be slow for complex topics
     AgentName.DATA_ENRICHMENT: 20.0,
     AgentName.PROMPT_ENGINEERING: 5.0,
-    AgentName.LLM_PROVIDER: 300.0,  # Increased to 5 minutes to handle large presentation generation with Claude
+    AgentName.LLM_PROVIDER: 180.0,  # Reduced to 3 minutes with 2-minute HTTP timeout
     AgentName.VALIDATION: 5.0,
     AgentName.VISUAL_REFINEMENT: 90.0,  # Increased for Phase 5 batch processing (3 LLM calls per batch)
     AgentName.QUALITY_SCORING: 10.0,
@@ -1312,11 +1312,40 @@ class PipelineOrchestrator:
         )
         
         validation_start = time.monotonic()
+        
+        # Step 1: Schema and content validation
         result = self._validation.validate(
             data=raw,
             execution_id=ctx.execution_id,
             apply_corrections=True,
         )
+        
+        # Step 2: Layout validation for proper content fitting
+        slides_to_validate = result.corrected_data.get("slides", []) if result.corrected_data else raw.get("slides", [])
+        
+        if slides_to_validate:
+            from app.agents.layout_validation import layout_validation_agent
+            
+            layout_result = layout_validation_agent.validate_layout(
+                slides=slides_to_validate,
+                execution_id=ctx.execution_id,
+                apply_corrections=True
+            )
+            
+            if layout_result.corrected_slides:
+                # Update the result with layout-corrected slides
+                if not result.corrected_data:
+                    result.corrected_data = raw.copy()
+                result.corrected_data["slides"] = layout_result.corrected_slides
+                result.corrections_applied += layout_result.corrections_applied
+                
+                logger.info(
+                    "layout_validation_applied",
+                    execution_id=ctx.execution_id,
+                    layout_issues=len(layout_result.issues),
+                    layout_corrections=layout_result.corrections_applied
+                )
+        
         validation_elapsed = (time.monotonic() - validation_start) * 1000
         ctx.validated_slides = result.corrected_data or raw
         

@@ -83,9 +83,10 @@ VALID_TYPOGRAPHY_TOKENS: frozenset = frozenset({
     "slide-title", "slide-subtitle", "slide-body", "slide-caption",
 })
 
-# Valid theme names — must stay in sync with tokens.ts themes object
+# Valid theme names — only two Hexaware palettes are supported
 VALID_THEME_NAMES: frozenset = frozenset({
-    "executive", "professional", "dark-modern", "corporate",
+    "hexaware_corporate",
+    "hexaware_professional",
 })
 
 # layout_instructions keys that reference spacing tokens
@@ -112,8 +113,8 @@ MAX_TITLE_WORDS = 8
 MAX_BULLETS = 4
 MIN_BULLETS = 2  # Minimum bullets per content slide
 MAX_WORDS_PER_BULLET = 8
-MAX_CONTENT_DENSITY = 0.75
-MIN_WHITESPACE_RATIO = 0.25
+MAX_CONTENT_DENSITY = 0.85  # Increased from 0.75 to allow more content
+MIN_WHITESPACE_RATIO = 0.15  # Decreased from 0.25 to allow more content
 
 
 # ---------------------------------------------------------------------------
@@ -1066,6 +1067,34 @@ class ValidationAgent:
                         slide_number=slide_num,
                         original_length=len(subtitle)
                     )
+                
+                # ── Branding compliance: ensure space for logo and copyright ──
+                # Logo placement: top-right (2.3" × 0.58" at x=7.4", y=0.18")
+                # Copyright placement: bottom-left (above accent strip at y=H-0.38")
+                # Ensure title and KPI badges don't overlap with these regions
+                
+                # Check if title is too long (would push subtitle down and overlap with KPI badges)
+                title = slide.get("title", "")
+                title_word_count = len(title.split())
+                if title_word_count > 10:
+                    # Long titles push subtitle down, which crowds the fixed info row at y=4.42"
+                    logger.warning(
+                        "title_slide_title_too_long_for_branding",
+                        slide_number=slide_num,
+                        word_count=title_word_count,
+                        recommendation="Shorten title to ≤ 10 words to keep subtitle above the fixed info row at y=4.42\""
+                    )
+                
+                # Limit KPI badges to 4 to ensure they don't overlap with copyright
+                bullets = content.get("bullets", [])
+                if len(bullets) > 4:
+                    logger.info(
+                        "title_slide_kpi_badges_limited_for_branding",
+                        slide_number=slide_num,
+                        original_count=len(bullets),
+                        limited_to=4,
+                        reason="Ensure space for copyright text at bottom"
+                    )
 
             elif slide_type == "content":
                 # Content slides must have bullets
@@ -1074,16 +1103,43 @@ class ValidationAgent:
                     # Generate from title words as placeholder
                     title = slide.get("title", "")
                     content["bullets"] = [
-                        f"Key insight: {title}",
+                        f"Key insight: {title}" if title else "Key insights and findings",
                         "Supporting evidence and data points",
                         "Strategic implications for stakeholders",
                         "Recommended next steps and actions",
                     ]
                     corrections += 1
-                    logger.info("generated_content_bullets", slide_number=slide_num)
-                # Ensure bullets is a list of strings
+                    logger.warning("generated_content_bullets_for_empty_slide", 
+                                 slide_number=slide_num, title=title)
+                
+                # Ensure bullets is a list of strings and not empty
                 if isinstance(content.get("bullets"), list):
-                    content["bullets"] = [str(b) for b in content["bullets"] if b]
+                    # Filter out empty bullets and convert to strings
+                    valid_bullets = [str(b).strip() for b in content["bullets"] if b and str(b).strip()]
+                    if not valid_bullets:
+                        # If all bullets were empty, generate fallback content
+                        title = slide.get("title", "")
+                        valid_bullets = [
+                            f"Analysis of {title}" if title else "Key analysis points",
+                            "Supporting data and evidence",
+                            "Strategic recommendations",
+                            "Implementation considerations",
+                        ]
+                        logger.warning("replaced_empty_bullets_with_fallback", 
+                                     slide_number=slide_num)
+                    content["bullets"] = valid_bullets
+                else:
+                    # bullets is not a list, create fallback
+                    title = slide.get("title", "")
+                    content["bullets"] = [
+                        f"Overview of {title}" if title else "Content overview",
+                        "Key findings and insights",
+                        "Strategic implications",
+                        "Next steps and recommendations",
+                    ]
+                    corrections += 1
+                    logger.warning("created_bullets_from_non_list", 
+                                 slide_number=slide_num, original_type=type(content.get("bullets")))
                 
                 # CRITICAL: Enforce minimum bullet count (MIN_BULLETS = 2)
                 bullets = content.get("bullets", [])
@@ -1500,6 +1556,9 @@ class ValidationAgent:
         - Has metric_value → "metric"
         - Otherwise → "content"
         
+        UPDATED: Respects 3-chart limit by not converting content slides to charts
+        beyond what's already designated by the storyboarding agent.
+        
         Args:
             data: Slide_JSON data
             
@@ -1512,6 +1571,9 @@ class ValidationAgent:
         slides = corrected.get("slides", [])
         if not slides:
             return corrected, corrections
+        
+        # Count existing chart slides to enforce 3-chart limit
+        existing_chart_count = sum(1 for slide in slides if slide.get("type") == "chart")
         
         for i, slide in enumerate(slides):
             original_type = slide.get("type", "content")
@@ -1534,35 +1596,38 @@ class ValidationAgent:
             
             # Rules 2-5: Only apply to non-first slides
             if i > 0:
-                # Rule 2: Has chart_data → "chart"
+                # Rule 2: Has chart_data → "chart" (but respect 3-chart limit)
                 if content.get("chart_data") and original_type == "content":
-                    inferred_type = "chart"
+                    if existing_chart_count < 3:
+                        inferred_type = "chart"
+                        existing_chart_count += 1
+                    else:
+                        # Remove chart_data if we already have 3 charts
+                        content.pop("chart_data", None)
+                        logger.info("removed_excess_chart_data", slide_number=i + 1, reason="3_chart_limit_reached")
                 
                 # Rule 3: Has table_data → "table"
-                if content.get("table_data") and original_type == "content":
+                elif content.get("table_data") and original_type == "content":
                     inferred_type = "table"
                 
                 # Rule 4: Has comparison_data → "comparison"
-                if content.get("comparison_data") and original_type == "content":
+                elif content.get("comparison_data") and original_type == "content":
                     inferred_type = "comparison"
                 
                 # Rule 5: Has metric_value → "metric"
-                if content.get("metric_value") and original_type == "content":
+                elif content.get("metric_value") and original_type == "content":
                     inferred_type = "metric"
-            
-            # Rule 6: Title contains keywords suggesting chart/table
-            # Only applies to slides after the first
-            title_lower = slide.get("title", "").lower()
-            if i > 0 and original_type == "content" and not content.get("chart_data"):
-                if any(keyword in title_lower for keyword in ["chart", "graph", "trend", "growth", "rate", "comparison", "vs", "versus"]):
-                    # Check if there's numeric data in bullets that could be charted
-                    bullets = content.get("bullets", [])
-                    if bullets and any(any(char.isdigit() for char in str(b)) for b in bullets):
-                        inferred_type = "chart"
-            
-            if i > 0 and original_type == "content" and not content.get("table_data"):
-                if any(keyword in title_lower for keyword in ["table", "matrix", "breakdown", "kpi", "metrics", "performance indicators"]):
-                    inferred_type = "table"
+                
+                # Rule 7: Table inference based on title keywords (only if no data fields present)
+                elif original_type == "content" and not any([
+                    content.get("chart_data"), 
+                    content.get("table_data"), 
+                    content.get("comparison_data"), 
+                    content.get("metric_value")
+                ]):
+                    title_lower = slide.get("title", "").lower()
+                    if any(keyword in title_lower for keyword in ["table", "matrix", "breakdown", "kpi", "metrics", "performance indicators"]):
+                        inferred_type = "table"
             
             # Apply the inferred type
             if inferred_type != original_type:
@@ -1630,9 +1695,9 @@ class ValidationAgent:
             total_chars += sum(len(str(b)) for b in right.get("bullets", []))
         
         # Estimate density based on character count
-        # Typical slide can comfortably hold ~400-500 chars
-        # MAX_CONTENT_DENSITY = 0.75 means we allow up to ~600 chars
-        MAX_COMFORTABLE_CHARS = 500
+        # Typical slide can comfortably hold ~500-600 chars
+        # MAX_CONTENT_DENSITY = 0.85 means we allow up to ~700 chars
+        MAX_COMFORTABLE_CHARS = 600  # Increased from 500
         density = min(1.0, total_chars / MAX_COMFORTABLE_CHARS)
         
         return density
@@ -1641,7 +1706,7 @@ class ValidationAgent:
         """
         Enforce content density limits to prevent overflow.
         
-        If content density exceeds MAX_CONTENT_DENSITY (0.75), reduces content:
+        If content density exceeds MAX_CONTENT_DENSITY (0.85), reduces content:
         - Truncates bullets to MAX_BULLETS (4)
         - Truncates each bullet to MAX_WORDS_PER_BULLET (8)
         - Truncates title to MAX_TITLE_WORDS (8)
@@ -1925,6 +1990,436 @@ class ValidationAgent:
             logger.error("round_trip_validation_failed", error=str(e))
             return False
     
+    def validate_branding(self, data: Dict[str, Any]) -> List[ValidationError]:
+        """
+        Validate branding compliance for the title slide fixed-zone layout.
+
+        The title slide uses a deterministic ZONE layout (all values in inches,
+        slide = 10" × 5.625"):
+
+          Logo          : x=8.45"  y=0.12"   w=1.4"   h=0.35"  (top-right)
+          Title area    : x=0.45"  y=1.0"    w=6.8"   (left content column)
+          Subtitle      : x=0.45"  below title
+          Divider rule  : y=4.38"  (fixed)
+          Info row      : y=4.42"  h=0.25"   (Prepared by / Date / Classification)
+          KPI cards     : y=4.70"  h=0.72"   (max 4 cards, w=2.15" each)
+          Copyright strip: y=5.445" h=0.18"  (teal strip, text inside)
+
+        Rules enforced (all severity="warning", non-blocking):
+          1. First slide must be type="title"
+          2. Title ≤ 10 words  — longer titles risk overflowing into the info row
+          3. KPI badges ≤ 4    — 5th card would exceed the 9.4" slide width
+          4. Subtitle ≤ 60 chars — longer subtitles wrap into the logo zone
+          5. No icon_name on title slides — icons render top-right, collide with logo
+          6. KPI badge text ≤ 12 words each — text must fit in 0.72" card height
+        """
+        # ── Fixed zone constants (mirrors builder.js ZONE object) ──────────
+        LOGO_X        = 8.45   # logo left edge (inches)
+        LOGO_Y        = 0.12   # logo top edge
+        LOGO_W        = 1.40   # logo width
+        LOGO_H        = 0.35   # logo height
+        DIVIDER_Y     = 4.38   # thin rule above info row
+        INFO_Y        = 4.42   # info row top
+        INFO_H        = 0.25   # info row height
+        KPI_Y         = 4.70   # KPI cards top
+        KPI_H         = 0.72   # KPI cards height
+        KPI_CARD_W    = 2.15   # single KPI card width
+        KPI_MAX_COUNT = 4      # max cards before overflow
+        STRIP_Y       = 5.445  # copyright strip top
+        STRIP_H       = 0.18   # copyright strip height
+        SLIDE_W       = 10.0
+        SLIDE_H       = 5.625
+
+        errors: List[ValidationError] = []
+        slides = data.get("slides", [])
+
+        if not slides:
+            return errors
+
+        # ── Rule 1: First slide must be title ──────────────────────────────
+        first_type = slides[0].get("type", "")
+        if first_type != "title":
+            errors.append(ValidationError(
+                field="slides[0].type",
+                message=(
+                    f"First slide type is '{first_type}' but must be 'title'. "
+                    "The Hexaware logo, info row, and copyright strip are only "
+                    "rendered on title-type slides."
+                ),
+                severity="warning",
+                auto_corrected=False,
+            ))
+
+        # ── Rules 2-6: Check every title slide ────────────────────────────
+        for i, slide in enumerate(slides):
+            if slide.get("type") != "title":
+                continue
+
+            title_text = slide.get("title", "")
+            content    = slide.get("content", {})
+            bullets    = content.get("bullets", [])
+            subtitle   = content.get("subtitle", "")
+
+            # Rule 2: Title word count
+            # Title box is x=0.45" w=6.8" — at 32pt a 10-word title fits on
+            # ~2 lines (height ≈ 1.4"). Beyond 10 words the box grows and
+            # subtitle gets pushed toward the fixed divider at y=4.38".
+            word_count = len(title_text.split())
+            if word_count > 10:
+                errors.append(ValidationError(
+                    field=f"slides[{i}].title",
+                    message=(
+                        f"Title has {word_count} words (max 10 recommended). "
+                        f"The title box grows dynamically; beyond 10 words it "
+                        f"may push the subtitle past y=3.0\" and crowd the "
+                        f"fixed info row at y={INFO_Y}\"."
+                    ),
+                    severity="warning",
+                    auto_corrected=False,
+                ))
+
+            # Rule 3: KPI badge count
+            # 4 cards × 2.35" spacing starting at x=0.45" → last card ends at
+            # x = 0.45 + 3×2.35 + 2.15 = 9.55" which fits within 10".
+            # A 5th card would start at x=9.85" and overflow the slide.
+            if len(bullets) > KPI_MAX_COUNT:
+                errors.append(ValidationError(
+                    field=f"slides[{i}].content.bullets",
+                    message=(
+                        f"Title slide has {len(bullets)} KPI badges (max {KPI_MAX_COUNT}). "
+                        f"Cards are 2.15\" wide with 2.35\" spacing; a 5th card "
+                        f"would overflow the {SLIDE_W}\" slide width. "
+                        f"Extra badges will be silently dropped by the renderer."
+                    ),
+                    severity="warning",
+                    auto_corrected=False,
+                ))
+
+            # Rule 4: Subtitle length
+            # Subtitle is rendered at x=0.45" w=6.8" (stops before logo at x=8.45").
+            # At 16pt, ~60 chars fit on one line. Longer text wraps and may
+            # push the subtitle bottom past y=3.0", crowding the info row.
+            if len(subtitle) > 60:
+                errors.append(ValidationError(
+                    field=f"slides[{i}].content.subtitle",
+                    message=(
+                        f"Subtitle is {len(subtitle)} chars (max 60). "
+                        f"At 16pt the subtitle column is 6.8\" wide; longer text "
+                        f"wraps and may push content toward the info row at "
+                        f"y={INFO_Y}\". Logo zone is x>{LOGO_X}\" y<{LOGO_Y + LOGO_H}\"."
+                    ),
+                    severity="warning",
+                    auto_corrected=False,
+                ))
+
+            # Rule 5: No icon_name on title slides
+            # Icons are rendered top-right at x≈8.5" y≈0.5" — directly over
+            # the Hexaware logo at x=8.45" y=0.12" w=1.4" h=0.35".
+            if content.get("icon_name"):
+                errors.append(ValidationError(
+                    field=f"slides[{i}].content.icon_name",
+                    message=(
+                        f"Title slide has icon_name='{content['icon_name']}'. "
+                        f"Icons render at x≈8.5\" y≈0.5\" which overlaps the "
+                        f"Hexaware logo zone (x={LOGO_X}\" y={LOGO_Y}\" "
+                        f"w={LOGO_W}\" h={LOGO_H}\"). "
+                        "Remove icon_name from title slides."
+                    ),
+                    severity="warning",
+                    auto_corrected=False,
+                ))
+
+            # Rule 6: KPI badge text length
+            # KPI cards are h=0.72" at 9.5pt. Each card holds ~2 lines of text.
+            # More than ~12 words will overflow the card height.
+            for j, badge in enumerate(bullets[:KPI_MAX_COUNT]):
+                badge_text  = badge if isinstance(badge, str) else str(badge)
+                badge_words = len(badge_text.split())
+                if badge_words > 12:
+                    errors.append(ValidationError(
+                        field=f"slides[{i}].content.bullets[{j}]",
+                        message=(
+                            f"KPI badge {j+1} has {badge_words} words (max 12). "
+                            f"Cards are {KPI_H}\" tall at 9.5pt; long text overflows "
+                            "the card boundary and overlaps adjacent elements."
+                        ),
+                        severity="warning",
+                        auto_corrected=False,
+                    ))
+
+        logger.debug(
+            "branding_validation_complete",
+            title_slide_count=sum(1 for s in slides if s.get("type") == "title"),
+            branding_warnings=len(errors),
+        )
+        return errors
+
+    def validate_slide_completeness_before_rendering(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[ValidationError]]:
+        """
+        Validate that all slides have complete content before PPTX rendering.
+        
+        This is the final validation step that ensures every slide has:
+        - Required content for its type (bullets, chart_data, table_data, etc.)
+        - Visual enhancements (icon_name, highlight_text)
+        - Speaker notes
+        - Proper layout constraints
+        
+        Args:
+            data: Slide_JSON data ready for rendering
+            
+        Returns:
+            Tuple of (validated_data, validation_errors)
+        """
+        corrected = deepcopy(data)
+        errors = []
+        
+        for i, slide in enumerate(corrected.get("slides", [])):
+            slide_id = slide.get("slide_id", f"slide-{i+1}")
+            slide_type = slide.get("type", "content")
+            content = slide.get("content", {})
+            slide_num = slide.get("slide_number", i + 1)
+            
+            # Check for missing visual enhancements
+            if not content.get("icon_name"):
+                errors.append(
+                    ValidationError(
+                        field=f"slides[{i}].content.icon_name",
+                        message=f"Slide {slide_num} missing icon_name - may appear blank",
+                        severity="warning",
+                        auto_corrected=False
+                    )
+                )
+                # Add fallback icon
+                content["icon_name"] = "FileText"
+            
+            if not content.get("highlight_text"):
+                errors.append(
+                    ValidationError(
+                        field=f"slides[{i}].content.highlight_text",
+                        message=f"Slide {slide_num} missing highlight_text - may appear blank",
+                        severity="warning", 
+                        auto_corrected=False
+                    )
+                )
+                # Add fallback highlight
+                title = slide.get("title", "")
+                content["highlight_text"] = f"Key insight: {title[:30]}..." if title else "Strategic insight"
+            
+            if not slide.get("speaker_notes"):
+                errors.append(
+                    ValidationError(
+                        field=f"slides[{i}].speaker_notes",
+                        message=f"Slide {slide_num} missing speaker_notes",
+                        severity="warning",
+                        auto_corrected=False
+                    )
+                )
+                # Add fallback speaker notes
+                slide["speaker_notes"] = f"This slide presents {slide.get('title', 'key information')}. Review the content and provide context for the audience."
+            
+            # Type-specific content validation
+            if slide_type == "content":
+                bullets = content.get("bullets", [])
+                if not bullets or len(bullets) == 0:
+                    errors.append(
+                        ValidationError(
+                            field=f"slides[{i}].content.bullets",
+                            message=f"Content slide {slide_num} has no bullets - will appear blank",
+                            severity="error",
+                            auto_corrected=False
+                        )
+                    )
+                    # Add fallback bullets
+                    title = slide.get("title", "")
+                    content["bullets"] = [
+                        f"Analysis of {title}" if title else "Key analysis points",
+                        "Supporting data and evidence",
+                        "Strategic recommendations",
+                        "Implementation considerations"
+                    ]
+            
+            elif slide_type == "chart":
+                chart_data = content.get("chart_data")
+                if not chart_data or (isinstance(chart_data, list) and len(chart_data) == 0):
+                    errors.append(
+                        ValidationError(
+                            field=f"slides[{i}].content.chart_data",
+                            message=f"Chart slide {slide_num} has no chart_data - will appear blank",
+                            severity="error",
+                            auto_corrected=False
+                        )
+                    )
+                    # Add fallback chart data
+                    content["chart_data"] = [
+                        {"label": "Category A", "value": 42.5},
+                        {"label": "Category B", "value": 67.3},
+                        {"label": "Category C", "value": 55.1}
+                    ]
+                
+                if not content.get("chart_type"):
+                    content["chart_type"] = "bar"
+            
+            elif slide_type == "table":
+                table_data = content.get("table_data")
+                if not table_data or not isinstance(table_data, dict) or not table_data.get("headers"):
+                    errors.append(
+                        ValidationError(
+                            field=f"slides[{i}].content.table_data",
+                            message=f"Table slide {slide_num} has invalid table_data - will appear blank",
+                            severity="error",
+                            auto_corrected=False
+                        )
+                    )
+                    # Add fallback table data
+                    content["table_data"] = {
+                        "headers": ["Metric", "Value", "Trend"],
+                        "rows": [
+                            ["Revenue Growth", "12.5%", "↑"],
+                            ["Market Share", "23.4%", "↑"],
+                            ["Cost Reduction", "8.2%", "↓"]
+                        ]
+                    }
+            
+            elif slide_type == "comparison":
+                comparison_data = content.get("comparison_data")
+                if not comparison_data or not isinstance(comparison_data, dict):
+                    errors.append(
+                        ValidationError(
+                            field=f"slides[{i}].content.comparison_data",
+                            message=f"Comparison slide {slide_num} has invalid comparison_data - will appear blank",
+                            severity="error",
+                            auto_corrected=False
+                        )
+                    )
+                    # Add fallback comparison data
+                    content["comparison_data"] = {
+                        "left_column": {"heading": "Current State", "bullets": ["Existing approach", "Current metrics"]},
+                        "right_column": {"heading": "Future State", "bullets": ["Improved approach", "Target metrics"]}
+                    }
+        
+        return corrected, errors
+
+    def detect_and_remove_problematic_slides(self, data: Dict[str, Any], execution_id: str) -> Tuple[Dict[str, Any], List[int]]:
+        """
+        Detect and remove slides with layout/content fit issues.
+        
+        This method identifies slides that have:
+        - Empty or missing critical content (bullets, chart data, table data)
+        - Content that was aggressively truncated (title < 3 words, no bullets)
+        - Incomplete batch processing results (missing icons, highlights, notes)
+        - Layout constraint violations
+        
+        Args:
+            data: Slide_JSON data
+            execution_id: Execution ID for tracing
+            
+        Returns:
+            Tuple of (corrected_data_with_problematic_slides_removed, removed_slide_numbers)
+        """
+        corrected = deepcopy(data)
+        removed_slide_numbers = []
+        slides = corrected.get("slides", [])
+        
+        logger.info(
+            "problematic_slide_detection_started",
+            execution_id=execution_id,
+            total_slides=len(slides)
+        )
+        
+        # Identify problematic slides
+        problematic_indices = []
+        
+        for i, slide in enumerate(slides):
+            slide_num = slide.get("slide_number", i + 1)
+            slide_type = slide.get("type", "content")
+            content = slide.get("content", {})
+            title = slide.get("title", "")
+            
+            is_problematic = False
+            reasons = []
+            
+            # Check 1: Title too short (likely truncated) - only for non-title slides
+            if slide_type != "title":
+                title_words = len(title.split()) if title else 0
+                if title_words < 2:
+                    is_problematic = True
+                    reasons.append(f"title_too_short ({title_words} words)")
+            
+            # Check 2: Content slide with no bullets
+            if slide_type == "content":
+                bullets = content.get("bullets", [])
+                if not bullets or len(bullets) == 0:
+                    is_problematic = True
+                    reasons.append("content_slide_no_bullets")
+                elif len(bullets) == 1 and len(bullets[0].split()) < 3:
+                    is_problematic = True
+                    reasons.append("content_slide_single_short_bullet")
+            
+            # Check 3: Chart slide with no chart data
+            elif slide_type == "chart":
+                chart_data = content.get("chart_data", [])
+                if not chart_data or len(chart_data) < 2:
+                    is_problematic = True
+                    reasons.append("chart_slide_insufficient_data")
+            
+            # Check 4: Table slide with no table data
+            elif slide_type == "table":
+                table_data = content.get("table_data", {})
+                if not table_data or not table_data.get("headers") or not table_data.get("rows"):
+                    is_problematic = True
+                    reasons.append("table_slide_invalid_data")
+            
+            # Check 5: Comparison slide with no comparison data
+            elif slide_type == "comparison":
+                comparison_data = content.get("comparison_data", {})
+                if not comparison_data or not comparison_data.get("left_column") or not comparison_data.get("right_column"):
+                    is_problematic = True
+                    reasons.append("comparison_slide_invalid_data")
+            
+            # Check 6: Batch boundary slides (7, 11, 15, 19, 23) - extra scrutiny
+            # These are at batch boundaries (BATCH_SIZE=2): [0-1], [2-3], [4-5], [6-7], [8-9], [10-11], [12-13]...
+            batch_boundary_indices = [6, 10, 14, 18, 22]  # Slide indices 7, 11, 15, 19, 23
+            if i in batch_boundary_indices:
+                # Extra validation for batch boundary slides
+                if slide_type == "content" and len(content.get("bullets", [])) < 2:
+                    is_problematic = True
+                    reasons.append(f"batch_boundary_slide_insufficient_content (index {i})")
+                elif slide_type == "chart" and len(content.get("chart_data", [])) < 3:
+                    is_problematic = True
+                    reasons.append(f"batch_boundary_slide_insufficient_chart_data (index {i})")
+            
+            if is_problematic:
+                problematic_indices.append(i)
+                removed_slide_numbers.append(slide_num)
+                logger.warning(
+                    "problematic_slide_detected",
+                    execution_id=execution_id,
+                    slide_number=slide_num,
+                    slide_type=slide_type,
+                    reasons=", ".join(reasons),
+                    title=title[:50] if title else "(no title)"
+                )
+        
+        # Remove problematic slides (in reverse order to maintain indices)
+        for idx in reversed(problematic_indices):
+            corrected["slides"].pop(idx)
+        
+        # Renumber remaining slides
+        for i, slide in enumerate(corrected.get("slides", [])):
+            slide["slide_number"] = i + 1
+        
+        logger.info(
+            "problematic_slides_removed",
+            execution_id=execution_id,
+            original_count=len(slides),
+            final_count=len(corrected.get("slides", [])),
+            removed_count=len(removed_slide_numbers),
+            removed_slide_numbers=removed_slide_numbers
+        )
+        
+        return corrected, removed_slide_numbers
+
+
     def validate(
         self,
         data: Dict[str, Any],
@@ -2015,6 +2510,16 @@ class ValidationAgent:
         visual_hint_errors = self.validate_visual_hints(corrected_data)
         all_errors.extend(visual_hint_errors)
 
+        # Validate branding compliance (logo + copyright placement on title slides)
+        branding_errors = self.validate_branding(corrected_data)
+        all_errors.extend(branding_errors)
+        if branding_errors:
+            logger.info(
+                "branding_validation_warnings",
+                execution_id=execution_id,
+                warnings=len(branding_errors),
+            )
+
         # Validate design token names in layout_instructions (non-blocking warnings)
         token_errors = self.validate_layout_instructions(corrected_data)
         all_errors.extend(token_errors)
@@ -2058,6 +2563,22 @@ class ValidationAgent:
         corrected_data, overflow_slides = self.apply_content_constraints(corrected_data)
         if overflow_slides:
             total_corrections += len(overflow_slides)
+        
+        # --- Step 5: Detect and remove problematic slides (NEW) ---
+        # Identifies slides with layout/content fit issues and removes them
+        # This prevents blank or malformed slides from appearing in the final presentation
+        corrected_data, removed_slides = self.detect_and_remove_problematic_slides(
+            corrected_data,
+            execution_id
+        )
+        if removed_slides:
+            total_corrections += len(removed_slides)
+            logger.info(
+                "problematic_slides_removed_in_validation",
+                execution_id=execution_id,
+                removed_count=len(removed_slides),
+                removed_slide_numbers=removed_slides
+            )
         
         # Validate round-trip property
         round_trip_valid = self.validate_round_trip(corrected_data)

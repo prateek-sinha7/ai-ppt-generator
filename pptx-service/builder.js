@@ -1,6 +1,7 @@
 "use strict";
 const pptxgen = require("pptxgenjs");
 const { iconToBase64 } = require("./icons");
+const { getHexawareLogoBase64 } = require("./logo");
 
 // ─── LAYOUT ───────────────────────────────────────────────────────────────────
 // LAYOUT_16x9 = 10" × 5.625"
@@ -13,96 +14,106 @@ const mkShadow = () => ({ type: "outer", blur: 8, offset: 3, angle: 135, color: 
 const mkShadowSm = () => ({ type: "outer", blur: 4, offset: 2, angle: 135, color: "000000", opacity: 0.12 });
 
 // ─── PALETTE RESOLVER ─────────────────────────────────────────────────────────
+// Uses DesignSpec from backend when available, falls back to Hexaware themes.
 function resolveDesign(designSpec, theme) {
-  // Built-in palettes — dark, rich, enterprise-grade
+  // If we have a valid DesignSpec from the backend, use it
+  if (designSpec && designSpec.primary_color) {
+    console.log(`Using DesignSpec from backend: ${designSpec.palette_name || 'Custom'}`);
+    return {
+      // Use colors from DesignSpec (remove # prefix if present)
+      navy:    designSpec.secondary_color?.replace('#', '') || "000080",
+      teal:    designSpec.accent_color?.replace('#', '') || "000080", 
+      tealDk:  designSpec.accent_color?.replace('#', '') || "000080",
+      blue:    designSpec.secondary_color?.replace('#', '') || "000080", 
+      blueLt:  designSpec.secondary_color?.replace('#', '') || "000080", 
+      white:   "FFFFFF",
+      offwhite:"FFFFFF", 
+      slate:   designSpec.text_color?.replace('#', '') || "000000", 
+      slateL:  designSpec.text_light_color?.replace('#', '') || "5A5A6A",
+      dark:    designSpec.primary_color?.replace('#', '') || "000000", 
+      gold:    designSpec.accent_color?.replace('#', '') || "000080", 
+      green:   "22C55E",
+      red:     "E63946", 
+      cardBg:  "FFFFFF", 
+      cardBg2: "FFFFFF",
+      accent:  designSpec.accent_color?.replace('#', '') || "000080", 
+      primary: designSpec.primary_color?.replace('#', '') || "000000", 
+      secondary: designSpec.secondary_color?.replace('#', '') || "000080",
+      text:    designSpec.text_color?.replace('#', '') || "000000", 
+      textLight: designSpec.text_light_color?.replace('#', '') || "5A5A6A", 
+      bg:      designSpec.background_color?.replace('#', '') || "FFFFFF", 
+      bgDark:  designSpec.background_dark_color?.replace('#', '') || "000000",
+      chartColors: designSpec.chart_colors?.map(c => c.replace('#', '')) || ["000080","FF6B35","22C55E","E63946","F5A623","8FA3B8","4A7FE8"],
+      fontHeader: designSpec.font_header || "Calibri", 
+      fontBody: designSpec.font_body || "Calibri",
+    };
+  }
+
+  // Fallback to hardcoded Hexaware themes if no DesignSpec
+  console.log(`Using fallback theme: ${theme}`);
   const THEMES = {
-    executive: {
-      navy:    "0D1B2A", teal:    "00C9B1", tealDk:  "009B89",
-      blue:    "1B4F8A", blueLt:  "2A6FC4", white:   "FFFFFF",
-      offwhite:"F0F4F8", slate:   "64748B", slateL:  "94A3B8",
-      dark:    "0A0F1A", gold:    "FFB81C", green:   "22C55E",
-      red:     "EF4444", cardBg:  "112240", cardBg2: "162B4A",
-      accent:  "00C9B1", primary: "0D1B2A", secondary:"1B4F8A",
-      text:    "1A1A1A", textLight:"64748B", bg:"F0F4F8", bgDark:"0A0F1A",
-      chartColors:["1B4F8A","00C9B1","FFB81C","22C55E","EF4444","818CF8","F97316"],
+    // ── Hexaware Corporate ────────────────────────────────────────────────────
+    // Deep navy primary, Navy Blue accent, WHITE background on ALL slides.
+    hexaware_corporate: {
+      // 3 colors only: BLUE=000080 (Navy Blue), BLACK=000000, WHITE=FFFFFF
+      navy:    "000080", teal:    "000080", tealDk:  "000080",
+      blue:    "000080", blueLt:  "000080", white:   "FFFFFF",
+      offwhite:"FFFFFF", slate:   "000000", slateL:  "000000",
+      dark:    "000000", gold:    "000080", green:   "000080",
+      red:     "000080", cardBg:  "FFFFFF", cardBg2: "FFFFFF",
+      accent:  "000080", primary: "000000", secondary:"000080",
+      text:    "000000", textLight:"000000", bg:"FFFFFF", bgDark:"FFFFFF",
+      chartColors:["000080","000080","000080","000080","000080","000080","000080"],
       fontHeader:"Calibri", fontBody:"Calibri",
     },
-    professional: {
-      navy:    "000000", teal:    "86BC25", tealDk:  "5A8A00",
-      blue:    "00B4CC", blueLt:  "33C9DD", white:   "FFFFFF",
-      offwhite:"F5F5F5", slate:   "64748B", slateL:  "94A3B8",
-      dark:    "000000", gold:    "FF8C00", green:   "86BC25",
-      red:     "EF4444", cardBg:  "0A0A0A", cardBg2: "111111",
-      accent:  "86BC25", primary: "000000", secondary:"00B4CC",
-      text:    "1A1A1A", textLight:"64748B", bg:"FFFFFF", bgDark:"000000",
-      chartColors:["86BC25","00B4CC","FF8C00","662D91","009639","EF4444","F97316"],
+    // ── Hexaware Professional ─────────────────────────────────────────────────
+    // Near-black primary, Hexaware orange accent, WHITE background on ALL slides.
+    hexaware_professional: {
+      navy:    "0D0D0D", teal:    "FF6B35", tealDk:  "CC4F1E",
+      blue:    "000080", blueLt:  "4A7FE8", white:   "FFFFFF",
+      offwhite:"F7F7F7", slate:   "5A5A6A", slateL:  "9A9AAA",
+      dark:    "0D0D0D", gold:    "FF6B35", green:   "22C55E",
+      red:     "E63946", cardBg:  "FFFFFF", cardBg2: "FFFFFF",
+      accent:  "FF6B35", primary: "0D0D0D", secondary:"000080",
+      text:    "0D0D0D", textLight:"5A5A6A", bg:"FFFFFF", bgDark:"FFFFFF",
+      // Single chart color — all bars/segments use Hexaware orange
+      chartColors:["FF6B35","FF6B35","FF6B35","FF6B35","FF6B35","FF6B35","FF6B35"],
       fontHeader:"Arial", fontBody:"Arial",
     },
-    dark_modern: {
-      navy:    "1E2761", teal:    "CADCFC", tealDk:  "7EC8E3",
-      blue:    "2A6FC4", blueLt:  "4A8FE4", white:   "FFFFFF",
-      offwhite:"E8EDF5", slate:   "94A3B8", slateL:  "CBD5E1",
-      dark:    "0A0F1A", gold:    "F5A623", green:   "22C55E",
-      red:     "EF4444", cardBg:  "1E2761", cardBg2: "162040",
-      accent:  "CADCFC", primary: "1E2761", secondary:"2A6FC4",
-      text:    "E8EDF5", textLight:"94A3B8", bg:"0F172A", bgDark:"0A0F1A",
-      chartColors:["CADCFC","7EC8E3","A8D8EA","4A8FE4","F5A623","22C55E","EF4444"],
-      fontHeader:"Calibri", fontBody:"Calibri",
-    },
-    corporate: {
-      navy:    "002855", teal:    "0078AC", tealDk:  "005288",
-      blue:    "005288", blueLt:  "4682B4", white:   "FFFFFF",
-      offwhite:"F5F7FA", slate:   "646464", slateL:  "8C8C8C",
-      dark:    "002855", gold:    "0078AC", green:   "4682B4",
-      red:     "646464", cardBg:  "002855", cardBg2: "003366",
-      accent:  "0078AC", primary: "002855", secondary:"005288",
-      text:    "212121", textLight:"646464", bg:"FFFFFF", bgDark:"002855",
-      chartColors:["002855","005288","0078AC","4682B4","8CAAC8","B4CCE0","646464"],
-      fontHeader:"Calibri", fontBody:"Calibri",
-    },
   };
 
-  const base = THEMES[theme] || THEMES["corporate"];
-  if (!designSpec || !designSpec.primary_color) return base;
+  // Unknown theme name falls back to hexaware_corporate.
+  const resolvedKey = (theme === "hexaware_professional") ? "hexaware_professional" : "hexaware_corporate";
+  const base = THEMES[resolvedKey];
 
-  const h = (v, fb) => {
-    if (!v) return fb;
-    const s = String(v).replace("#", "");
-    return /^[0-9A-Fa-f]{6}$/.test(s) ? s.toUpperCase() : fb;
-  };
-
-  return {
-    ...base,
-    primary:    h(designSpec.primary_color,         base.primary),
-    secondary:  h(designSpec.secondary_color,       base.secondary),
-    accent:     h(designSpec.accent_color,          base.accent),
-    teal:       h(designSpec.accent_color,          base.teal),
-    dark:       h(designSpec.background_dark_color, base.dark),
-    bgDark:     h(designSpec.background_dark_color, base.bgDark),
-    chartColors: Array.isArray(designSpec.chart_colors)
-      ? designSpec.chart_colors.map(c => h(c, base.chartColors[0]))
-      : base.chartColors,
-    fontHeader: designSpec.font_header || base.fontHeader,
-    fontBody:   designSpec.font_body   || base.fontBody,
-  };
+  // Font overrides from designSpec if provided
+  if (designSpec && (designSpec.font_header || designSpec.font_body)) {
+    return {
+      ...base,
+      fontHeader: designSpec.font_header || base.fontHeader,
+      fontBody:   designSpec.font_body   || base.fontBody,
+    };
+  }
+  return base;
 }
 
 // ─── SHARED HEADER BAR ────────────────────────────────────────────────────────
-// Dark header with section label — used on all non-title slides
+// ─── SHARED HEADER BAR ────────────────────────────────────────────────────────
+// BLUE header bar, WHITE title text — used on all non-title slides
 function addSectionHeader(s, sectionLabel, C) {
-  s.addShape("rect", { x:0, y:0, w:W, h:0.82, fill:{color:C.dark}, line:{color:C.dark} });
-  s.addShape("rect", { x:0, y:0.82, w:W, h:0.05, fill:{color:C.teal}, line:{color:C.teal} });
+  s.addShape("rect", { x:0, y:0, w:W, h:0.82, fill:{color:C.teal}, line:{color:C.teal} });
+  s.addShape("rect", { x:0, y:0.82, w:W, h:0.04, fill:{color:"000000"}, line:{color:"000000"} });
   if (sectionLabel) {
     s.addText(sectionLabel, {
       x:0.45, y:0.1, w:W-0.9, h:0.62,
-      fontSize:14, bold:true, color:C.teal,
+      fontSize:14, bold:true, color:"FFFFFF",
       fontFace:C.fontHeader, charSpacing:2, valign:"middle", margin:0,
     });
   }
 }
 
 // ─── MAIN ENTRY POINT ─────────────────────────────────────────────────────────
-async function buildPptx(slides, designSpec, theme) {
+async function buildPptx(slides, designSpec, theme, metadata) {
   const C = resolveDesign(designSpec, theme);
   const pres = new pptxgen();
   pres.layout = "LAYOUT_16x9";
@@ -111,6 +122,12 @@ async function buildPptx(slides, designSpec, theme) {
   console.log(`\n=== Building PPTX with ${slides.length} slides ===`);
   console.log(`Theme: ${theme}`);
   console.log(`Design Spec:`, designSpec ? JSON.stringify(designSpec).substring(0, 200) : 'none');
+  console.log(`Resolved Colors:`, {
+    secondary: C.secondary,
+    accent: C.accent,
+    primary: C.primary,
+    chartColors: C.chartColors
+  });
   
   // Log first slide structure for debugging
   if (slides.length > 0) {
@@ -128,12 +145,11 @@ async function buildPptx(slides, designSpec, theme) {
 
     console.log(`\nSlide ${i + 1}/${slides.length}: type="${type}", title="${slide.title || '(no title)'}"`);
 
-    // Dark background for title + last slide; light for everything else
-    const useDark = (type === "title" || isLast);
-    pSlide.background = { color: useDark ? C.bgDark : C.bg };
+    // All slides use white background (C.bg = FFFFFF for both themes)
+    pSlide.background = { color: C.bg };
 
     switch (type) {
-      case "title":      await buildTitle(pSlide, slide, C); break;
+      case "title":      await buildTitle(pSlide, slide, C, metadata || {}); break;
       case "chart":      await buildChart(pSlide, slide, C, pres); break;
       case "table":      await buildTable(pSlide, slide, C); break;
       case "comparison": await buildComparison(pSlide, slide, C); break;
@@ -146,170 +162,151 @@ async function buildPptx(slides, designSpec, theme) {
   return await pres.write({ outputType: "nodebuffer" });
 }
 
-// ─── TITLE SLIDE ──────────────────────────────────────────────────────────────
-async function buildTitle(s, slide, C) {
+// ─── TITLE SLIDE ──────────────────────────────────────────────────────────────────────────────────────────────
+async function buildTitle(s, slide, C, metadata) {
   const content  = slide.content || {};
   const subtitle = content.subtitle || "";
   const bullets  = content.bullets || [];
-  const iconName = content.icon_name || null;
-  
-  // Check if this is a "Thank You" slide for special styling
+
+  const preparedBy     = (metadata && metadata.prepared_by)    || "Hexaware";
+  const preparedDate   = (metadata && metadata.date)           || new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
+  const classification = (metadata && metadata.classification) || "Confidential - Internal Use Only";
+
   const isThankYou = slide.title && (
     slide.title.toLowerCase().includes("thank you") ||
     slide.title.toLowerCase().includes("thank-you") ||
     slide.title.toLowerCase().includes("thanks")
   );
 
-  // Left teal accent stripe
+  // Chrome: left stripe + top bar
   s.addShape("rect", { x:0, y:0, w:0.12, h:H, fill:{color:C.teal}, line:{color:C.teal} });
+  s.addShape("rect", { x:0.12, y:0, w:W-0.12, h:0.06, fill:{color:C.teal}, line:{color:C.teal} });
 
-  // Decorative glowing circles (right side) - pushed further right to avoid overlap
+  // Logo top-right corner - larger size, perfectly aligned with borders
+  const logoData = await getHexawareLogoBase64(180, 45); // Larger logo: 180x45 pixels
+  if (logoData) s.addImage({ data: logoData, x: W - 1.8, y: 0.02, w: 1.75, h: 0.45 }); // Larger dimensions, aligned to top-right
+
+  // ─── LAYOUT (H = 5.625") ────────────────────────────────────────────────────
+  //
+  //  Title        y=0.55  h=1.60   ← tall box, text never overflows
+  //  Subtitle     y=2.25  h=0.40   ← 0.10" gap after title box ends at 2.15"
+  //  Divider      y=2.75  h=0.04
+  //  KPI cards    y=3.00  h=1.80   ← uses the big empty middle space
+  //  Info row     y=4.90  h=0.35   ← bottom, above copyright
+  //  Copyright    y=5.445 h=0.18   ← inside teal strip
+  //
+  // ────────────────────────────────────────────────────────────────────────────
+
   if (isThankYou) {
-    // Extra decorative elements for Thank You slide
-    s.addShape("ellipse", { x:7.2, y:-1.0, w:5.0, h:5.0, fill:{color:C.teal, transparency:88}, line:{color:C.teal, transparency:70, width:2} });
-    s.addShape("ellipse", { x:7.8, y:-0.2, w:3.5, h:3.5, fill:{color:C.teal, transparency:91}, line:{color:C.teal, transparency:78, width:1.5} });
-    s.addShape("ellipse", { x:8.3, y:0.5,  w:2.0, h:2.0, fill:{color:C.teal, transparency:85}, line:{color:C.teal, transparency:75, width:1} });
-  } else {
-    s.addShape("ellipse", { x:7.5, y:-0.8, w:4.5, h:4.5, fill:{color:C.teal, transparency:90}, line:{color:C.teal, transparency:75, width:1.5} });
-    s.addShape("ellipse", { x:8.0, y:0.0,  w:3.0, h:3.0, fill:{color:C.teal, transparency:93}, line:{color:C.teal, transparency:82, width:1} });
-  }
-
-  // Icon (top-right) - larger for Thank You slide
-  if (iconName) {
-    const iconSize = isThankYou ? 1.5 : 1.2;
-    const iconX = isThankYou ? 8.3 : 8.5;
-    const iconY = isThankYou ? 0.4 : 0.5;
-    const ic = await iconToBase64(iconName, "#" + C.teal, 512);
-    if (ic) s.addImage({ data:ic, x:iconX, y:iconY, w:iconSize, h:iconSize });
-  }
-
-  // Main title - centered and larger for Thank You slide
-  const titleText = slide.title || "Presentation";
-  const titleWordCount = titleText.split(/\s+/).length;
-  
-  if (isThankYou) {
-    // Thank You slide: centered, extra large, with glow effect
-    s.addText(titleText, {
-      x:1.5, y:2.0, w:7.0, h:1.5,
-      fontSize:48, bold:true, color:"FFFFFF",
-      fontFace:C.fontHeader, charSpacing:4,
-      align:"center", valign:"middle", margin:0,
+    s.addText(slide.title || "Thank You", {
+      x:0.45, y:1.6, w:9.1, h:1.6,
+      fontSize:52, bold:true, color:C.primary,
+      fontFace:C.fontHeader, align:"center", valign:"middle", margin:0,
     });
-  } else {
-    // Regular title slide — dynamic height to prevent subtitle overlap
-    const titleCharCount = titleText.length;
-    let fontSize, charsPerLine, lineHeight;
-    if (titleWordCount > 12) {
-      fontSize = 24; charsPerLine = 55; lineHeight = 0.55;
-    } else if (titleWordCount > 10) {
-      fontSize = 28; charsPerLine = 48; lineHeight = 0.62;
-    } else {
-      fontSize = 32; charsPerLine = 42; lineHeight = 0.70;
-    }
-
-    const estimatedLines = Math.ceil(titleCharCount / charsPerLine);
-    const estimatedTextHeight = estimatedLines * lineHeight;
-    // Add padding and ensure minimum height
-    const titleHeight = Math.max(estimatedTextHeight + 0.3, 1.4);
-    const titleY = 1.0;
-
-    s.addText(titleText, {
-      x:0.45, y:titleY, w:6.8, h:titleHeight,
-      fontSize, bold:true, color:"FFFFFF",
-      fontFace:C.fontHeader, charSpacing:titleWordCount > 10 ? 1 : 3,
-      margin:0, valign:"top",
-    });
-
-    // Subtitle always starts AFTER the title box ends + safe margin
-    var subtitleY = titleY + titleHeight + 0.2;
-    // Clamp so subtitle never goes below 3.0 (leaves room for KPI cards)
-    subtitleY = Math.min(subtitleY, 3.0);
-  }
-
-  // Subtitle - centered for Thank You slide, positioned below title for regular slides
-  if (subtitle) {
-    if (isThankYou) {
+    if (subtitle) {
       s.addText(subtitle, {
-        x:1.5, y:3.6, w:7.0, h:0.6,
-        fontSize:20, color:C.teal, fontFace:C.fontBody, 
+        x:0.45, y:3.3, w:9.1, h:0.5,
+        fontSize:20, color:C.teal, fontFace:C.fontBody,
         align:"center", valign:"middle", margin:0,
       });
-    } else {
-      // Position subtitle below title with proper spacing
+    }
+  } else {
+    const titleText  = slide.title || "Presentation";
+    const titleWords = titleText.split(/\s+/).length;
+    // Font size scales down for longer titles — box is always 1.60" tall
+    const titleFontSize = titleWords > 12 ? 22 : titleWords > 8 ? 26 : 32;
+
+    // Title — 1.60" tall box guarantees no overflow into subtitle
+    s.addText(titleText, {
+      x:0.45, y:0.55, w:7.8, h:1.60,
+      fontSize:titleFontSize, bold:true, color:C.primary,
+      fontFace:C.fontHeader, valign:"middle", margin:0,
+    });
+
+    // Subtitle — starts at y=2.25, always 0.10" below the title box
+    if (subtitle) {
       s.addText(subtitle, {
-        x:0.45, y:subtitleY, w:6.8, h:0.5,
-        fontSize:16, color:C.teal, fontFace:C.fontBody, italic:true, margin:0,
+        x:0.45, y:2.25, w:7.8, h:0.40,
+        fontSize:14, color:C.teal, fontFace:C.fontBody, italic:true,
+        valign:"middle", margin:0,
       });
     }
-  }
 
-  // Thin divider - only for non-Thank You slides, positioned below subtitle
-  if (!isThankYou && subtitle) {
-    const dividerY = subtitleY + 0.58; // Below subtitle
-    if (dividerY < 3.6) {
-      s.addShape("rect", { x:0.45, y:dividerY, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
+    // Divider
+    s.addShape("rect", { x:0.45, y:2.75, w:9.1, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
+
+    // KPI cards — use the large empty space in the middle
+    const kpis = bullets.slice(0, 4);
+    if (kpis.length > 0) {
+      const kpiY = 3.00;
+      const kpiH = 1.80;   // tall — uses the empty space
+      const kpiW = (9.1 - (kpis.length - 1) * 0.15) / kpis.length;
+      kpis.forEach((kpi, i) => {
+        const bx = 0.45 + i * (kpiW + 0.15);
+        s.addShape("rect", {
+          x:bx, y:kpiY, w:kpiW, h:kpiH,
+          fill:{color:"FFFFFF"}, line:{color:C.navy, width:2},
+          shadow:mkShadow(),
+        });
+        s.addText(kpi, {
+          x:bx+0.10, y:kpiY+0.10, w:kpiW-0.20, h:kpiH-0.20,
+          fontSize:12, bold:false, color:C.navy,
+          align:"center", valign:"middle",
+          fontFace:C.fontBody, margin:8,
+        });
+      });
     }
-  } else if (!isThankYou) {
-    // No subtitle, use default position
-    s.addShape("rect", { x:0.45, y:3.5, w:3.8, h:0.04, fill:{color:C.teal}, line:{color:C.teal} });
-  }
 
-  // KPI badge cards — position below divider, always at least 0.2" below subtitle
-  const kpiY = subtitle ? Math.max(subtitleY + 0.75, 3.7) : 3.8;
-  const kpiH = H - kpiY - 0.1;
-  const kpis = bullets.slice(0, 4);
-  if (kpis.length > 0 && !isThankYou && kpiH > 0.5) {
-    kpis.forEach((kpi, i) => {
-      const bx = 0.45 + i * 2.35;
-      s.addShape("rect", {
-        x:bx, y:kpiY, w:2.15, h:kpiH,
-        fill:{color:C.cardBg}, line:{color:C.teal, width:1},
-        shadow:mkShadow(),
+    // Info row — bottom of slide, above copyright strip
+    const infoItems = [
+      { label: "Prepared by:",    value: preparedBy },
+      { label: "Date:",           value: preparedDate },
+      { label: "Classification:", value: classification },
+    ];
+    infoItems.forEach((item, i) => {
+      s.addText([
+        { text: item.label + "  ", options: { bold: true,  color: C.primary, fontSize: 9 } },
+        { text: item.value,        options: { bold: false, color: C.text,    fontSize: 9 } },
+      ], {
+        x: 0.45 + i * 3.05, y: 4.90, w: 3.0, h: 0.35,
+        fontFace: C.fontBody, valign: "middle", margin: 0,
       });
-      s.addText(kpi, {
-        x:bx, y:kpiY + 0.05, w:2.15, h:kpiH - 0.1,
-        fontSize:11, color:"FFFFFF", align:"center", valign:"middle",
-        fontFace:C.fontBody, margin:6,
-      });
-    });
-  } else if (subtitle && !isThankYou) {
-    s.addText(subtitle, {
-      x:0.45, y:3.7, w:6.8, h:0.4,
-      fontSize:12, color:C.slateL, fontFace:C.fontBody, margin:0,
     });
   }
 
-  // Bottom accent strip
-  s.addShape("rect", { x:0, y:H-0.07, w:W, h:0.07, fill:{color:C.teal}, line:{color:C.teal} });
+  // Copyright strip
+  s.addShape("rect", { x:0, y:H-0.18, w:W, h:0.18, fill:{color:C.teal}, line:{color:C.teal} });
+  s.addText("Copyright \u00A9 2026 Hexaware Technologies Limited. All rights reserved.", {
+    x:0.18, y:H-0.18, w:W-0.36, h:0.18,
+    fontSize:7, bold:false, color:"FFFFFF", fontFace:C.fontBody,
+    align:"left", valign:"middle", margin:0,
+  });
 
   if (slide.speaker_notes) s.addNotes(slide.speaker_notes);
 }
 
-// ─── CONTENT SLIDE ────────────────────────────────────────────────────────────
+// ─── CONTENT SLIDE ──────────────────────────────────────────────────────────────────────────────
 async function buildContent(s, slide, C, isDark) {
   const content   = slide.content || {};
   const bullets   = content.bullets || [];
   const iconName  = content.icon_name || null;
   const highlight = content.highlight_text || null;
-  const textColor = isDark ? "FFFFFF" : C.navy;
 
   addSectionHeader(s, null, C);
 
-  // Title in header
   s.addText(slide.title || "", {
     x:0.45, y:0.1, w:W-0.9, h:0.62,
     fontSize:18, bold:true, color:"FFFFFF",
     fontFace:C.fontHeader, charSpacing:1, valign:"middle", margin:0,
   });
 
-  // Icon circle (top-right of content area)
   let iconW = 0;
   if (iconName) {
-    const ic = await iconToBase64(iconName, "#" + C.teal, 256);
+    const ic = await iconToBase64(iconName, "#000080", 256);
     if (ic) {
       s.addShape("ellipse", {
         x:W-1.55, y:0.92, w:1.15, h:1.15,
-        fill:{color:C.navy, transparency:10}, line:{color:C.teal, width:1.5},
+        fill:{color:"FFFFFF"}, line:{color:C.secondary, width:1.5},
         shadow:mkShadowSm(),
       });
       s.addImage({ data:ic, x:W-1.42, y:1.05, w:0.88, h:0.88 });
@@ -317,63 +314,82 @@ async function buildContent(s, slide, C, isDark) {
     }
   }
 
-  // Numbered bullet cards
+  // Bullet cards — white bg, blue left border, black text
   const contentW = W - 0.8 - iconW;
   const hasHighlight = !!highlight;
-  const maxBullets = hasHighlight ? 4 : 5;
+  const maxBullets = 4; // Fixed to match layout validation limit
 
   bullets.slice(0, maxBullets).forEach((bullet, i) => {
     const by = 0.97 + i * 0.88;
-    if (by + 0.78 > H - (hasHighlight ? 0.95 : 0.15)) return;
-
-    const cardBg = isDark ? C.cardBg : "FFFFFF";
-    const cardBorder = isDark ? C.teal : "E2E8F0";
+    // Improved overflow check - ensure bullet card fits completely
+    if (by + 0.78 > H - (hasHighlight ? 1.0 : 0.2)) return;
 
     s.addShape("rect", {
       x:0.4, y:by, w:contentW, h:0.78,
-      fill:{color:cardBg}, line:{color:cardBorder, width:0.5},
+      fill:{color:"FFFFFF"}, line:{color:C.secondary, width:0.5},
       shadow:mkShadowSm(),
     });
-    // Number badge (primary color block)
-    s.addShape("rect", { x:0.4, y:by, w:0.52, h:0.78, fill:{color:C.navy}, line:{color:C.navy} });
+    // Blue left accent strip (6px ≈ 0.06")
+    s.addShape("rect", { x:0.4, y:by, w:0.06, h:0.78, fill:{color:C.secondary}, line:{color:C.secondary} });
+    // Number badge — white bg, Navy Blue border and number
+    s.addShape("rect", { x:0.52, y:by+0.13, w:0.38, h:0.52, fill:{color:"FFFFFF"}, line:{color:C.secondary, width:1.5} });
     s.addText(String(i + 1), {
-      x:0.4, y:by, w:0.52, h:0.78,
-      fontSize:13, bold:true, color:C.teal,
+      x:0.52, y:by+0.13, w:0.38, h:0.52,
+      fontSize:12, bold:true, color:"000080",
       align:"center", valign:"middle", fontFace:C.fontHeader, margin:0,
     });
-    // Handle bullet as string or object with text field
-    const bulletText = typeof bullet === 'string' ? bullet : (bullet?.text || String(bullet));
-    s.addText(bulletText, {
+    // Extract bullet text - handle string, dict with 'text' key, or any object
+    let bulletText = "";
+    if (typeof bullet === 'string') {
+      bulletText = bullet;
+    } else if (typeof bullet === 'object' && bullet !== null) {
+      // Try to extract text from object
+      bulletText = bullet.text || bullet.content || bullet.value || JSON.stringify(bullet);
+    } else {
+      bulletText = String(bullet);
+    }
+    // Truncate bullet text to prevent overflow
+    const truncatedText = bulletText.split(' ').slice(0, 8).join(' ');
+    s.addText(truncatedText, {
       x:1.0, y:by+0.08, w:contentW-0.68, h:0.62,
-      fontSize:11.5, color:textColor, fontFace:C.fontBody, valign:"middle", margin:0,
+      fontSize:11.5, color:"000000", fontFace:C.fontBody, valign:"middle", margin:0,
     });
   });
 
-  // Highlight callout bar at bottom
   if (highlight) {
     s.addShape("rect", {
-      x:0.4, y:H-0.82, w:W-0.8, h:0.68,
-      fill:{color:C.teal}, line:{color:C.teal},
+      x:0.4, y:H-0.95, w:W-0.8, h:0.80,  // Increased height for better text fit
+      fill:{color:"FFFFFF"}, line:{color:C.secondary, width:1},
       shadow:mkShadow(),
     });
-    s.addText("▶  " + highlight, {
-      x:0.4, y:H-0.82, w:W-0.8, h:0.68,
-      fontSize:11, bold:true, color:C.dark,
-      align:"center", valign:"middle", fontFace:C.fontBody, margin:6,
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
+    });
+    // Truncate highlight text to prevent overflow
+    const truncatedHighlight = highlight.split(' ').slice(0, 15).join(' ');
+    s.addText("▶  " + truncatedHighlight, {
+      x:0.4, y:H-0.95, w:W-0.8, h:0.80,
+      fontSize:11, bold:true, color:"000080",
+      align:"left", valign:"middle", fontFace:C.fontBody, margin:6,
     });
   }
 
   if (slide.speaker_notes) s.addNotes(slide.speaker_notes);
 }
 
-// ─── CHART SLIDE ──────────────────────────────────────────────────────────────
+// ─── CHART SLIDE ──────────────────────────────────────────────────────────────────────────────
 async function buildChart(s, slide, C, pres) {
   const content   = slide.content || {};
   const chartType = (content.chart_type || "bar").toLowerCase();
   const chartData = content.chart_data || [];
   const highlight = content.highlight_text || null;
   const bullets   = content.bullets || [];
+  const hasBullets = bullets.length > 0;
 
+  // ── Header bar ──
   addSectionHeader(s, null, C);
   s.addText(slide.title || "", {
     x:0.45, y:0.1, w:W-0.9, h:0.62,
@@ -381,117 +397,161 @@ async function buildChart(s, slide, C, pres) {
     fontFace:C.fontHeader, charSpacing:1, valign:"middle", margin:0,
   });
 
-  // Layout: left 38% = insight bullets, right 60% = chart
-  const leftW  = W * 0.37;
-  const chartX = leftW + 0.6;
-  const chartY = 0.92;
-  const chartW = W - chartX - 0.25;
-  const chartH = H - chartY - (highlight ? 0.95 : 0.3);
+  // ── Layout ──
+  // With bullets: left panel 32% (insight cards) + right 65% (chart card)
+  // Without bullets: full-width chart card
+  const panelTop = 0.97;
+  const panelH   = H - panelTop - (highlight ? 0.95 : 0.25);  // Increased bottom margin for highlight
+  const leftW    = hasBullets ? 3.0 : 0;
+  const gap      = hasBullets ? 0.25 : 0;
+  const chartX   = 0.3 + leftW + gap;
+  const chartW   = W - chartX - 0.3;
+  const chartY   = panelTop;
+  const chartH   = panelH;
 
-  // ── Chart ──
+  // ── Chart card: white bg, blue border, blue top accent ──
   if (chartData.length > 0) {
+    // Card background
+    s.addShape("rect", {
+      x:chartX, y:chartY, w:chartW, h:chartH,
+      fill:{color:"FFFFFF"}, line:{color:C.secondary, width:1},
+      shadow:mkShadow(),
+    });
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
+    });
+    // Blue top accent bar on chart card
+    s.addShape("rect", {
+      x:chartX, y:chartY, w:chartW, h:0.06,
+      fill:{color:C.secondary}, line:{color:C.secondary},
+    });
+
     const labels = chartData.map(d => String(d.label || d.name || ""));
     const values = chartData.map(d => Number(d.value || d.y || 0));
 
+    // Inner chart area — inset from card edges
+    const cx = chartX + 0.15;
+    const cy = chartY + 0.18;
+    const cw = chartW - 0.30;
+    const ch = chartH - 0.30;
+
     let pptxType, chartOpts;
+    const baseOpts = {
+      x:cx, y:cy, w:cw, h:ch,
+      chartColors: C.chartColors,
+      chartArea: { fill:{color:"FFFFFF"}, roundedCorners:false },
+      plotArea: { fill:{color:"FFFFFF"} },
+      catAxisLabelColor:"000000", valAxisLabelColor:"000000",
+      catAxisLabelFontSize:9, valAxisLabelFontSize:9,
+      valGridLine:{color:"DDDDDD", size:0.5, style:"dash"},
+      catGridLine:{style:"none"},
+      valAxisLineShow:false, catAxisLineShow:true,
+      showLegend:false,
+    };
 
     if (chartType === "pie" || chartType === "donut") {
       pptxType = pres.charts.PIE;
-      chartOpts = {
-        x:chartX, y:chartY, w:chartW, h:chartH,
-        chartColors: C.chartColors,
-        chartArea: { fill:{color:C.bg}, roundedCorners:false },
-        showLegend:true, legendPos:"b",
-        showPercent:true,
-        dataLabelColor:C.navy, dataLabelFontSize:10,
+      chartOpts = { ...baseOpts,
+        showLegend:true, legendPos:"b", legendFontSize:9, legendColor:"000000",
+        showPercent:true, dataLabelFontSize:10, dataLabelColor:"FFFFFF",
+        dataLabelPosition:"bestFit",
       };
     } else if (chartType === "line" || chartType === "line_smooth") {
       pptxType = pres.charts.LINE;
-      chartOpts = {
-        x:chartX, y:chartY, w:chartW, h:chartH,
-        chartColors: C.chartColors,
-        chartArea: { fill:{color:C.bg}, roundedCorners:false },
-        catAxisLabelColor:C.slate, valAxisLabelColor:C.slate,
-        valGridLine:{color:"E2E8F0", size:0.5}, catGridLine:{style:"none"},
-        lineSize:2.5, lineSmooth:true,
-        showValue:false, showLegend:false,
+      chartOpts = { ...baseOpts,
+        lineSize:3, lineSmooth:(chartType === "line_smooth"),
+        showValue:true, dataLabelFontSize:8, dataLabelColor:"000000",
+        dataLabelPosition:"t",
+        showMarker:true,
       };
     } else if (chartType === "area" || chartType === "stacked_area") {
       pptxType = pres.charts.AREA;
-      chartOpts = {
-        x:chartX, y:chartY, w:chartW, h:chartH,
-        chartColors: C.chartColors,
-        chartArea: { fill:{color:C.bg}, roundedCorners:false },
-        catAxisLabelColor:C.slate, valAxisLabelColor:C.slate,
-        valGridLine:{color:"E2E8F0", size:0.5}, catGridLine:{style:"none"},
-        showValue:false, showLegend:false,
-      };
+      chartOpts = { ...baseOpts, showValue:false };
     } else if (chartType === "stacked_bar") {
       pptxType = pres.charts.BAR;
-      chartOpts = {
-        x:chartX, y:chartY, w:chartW, h:chartH,
+      chartOpts = { ...baseOpts,
         barDir:"col", barGrouping:"stacked",
-        chartColors: C.chartColors,
-        chartArea: { fill:{color:C.bg}, roundedCorners:false },
-        catAxisLabelColor:C.slate, valAxisLabelColor:C.slate,
-        valGridLine:{color:"E2E8F0", size:0.5}, catGridLine:{style:"none"},
-        showValue:false, showLegend:true, legendPos:"b",
+        showValue:true, dataLabelFontSize:8, dataLabelColor:"FFFFFF",
+        dataLabelPosition:"ctr",
+        showLegend:true, legendPos:"b", legendFontSize:9,
       };
     } else {
-      // Default: clustered column
+      // Default: column bar — clean, value labels on top
       pptxType = pres.charts.BAR;
-      chartOpts = {
-        x:chartX, y:chartY, w:chartW, h:chartH,
-        barDir:"col", barGapWidthPct:45,
-        chartColors: C.chartColors,
-        chartArea: { fill:{color:C.bg}, roundedCorners:false },
-        catAxisLabelColor:C.slate, valAxisLabelColor:C.slate,
-        valGridLine:{color:"E2E8F0", size:0.5}, catGridLine:{style:"none"},
+      chartOpts = { ...baseOpts,
+        barDir:"col", barGapWidthPct:55,
         showValue:true, dataLabelPosition:"outEnd",
-        dataLabelColor:C.navy, dataLabelFontSize:9,
-        showLegend:false,
+        dataLabelFontSize:9, dataLabelColor:"000000",
+        dataLabelBold:true,
       };
     }
 
     s.addChart(pptxType, [{ name: slide.title || "Data", labels, values }], chartOpts);
   }
 
-  // ── Left insight bullets with accent left border ──
-  if (bullets.length > 0) {
-    bullets.slice(0, 5).forEach((b, i) => {
-      const by = 0.97 + i * 0.82;
-      if (by + 0.72 > H - (highlight ? 1.05 : 0.25)) return;
+  // ── Left insight panel ──
+  if (hasBullets) {
+    bullets.slice(0, 4).forEach((b, i) => {  // Limit to 4 bullets max
+      const by = panelTop + i * ((panelH - 0.1) / Math.min(bullets.length, 4));  // Use 4 instead of 5
+      const bh = (panelH - 0.1) / Math.min(bullets.length, 4) - 0.08;
+      // Strict overflow check - use >= to prevent touching boundaries
+      if (by + bh >= H - (highlight ? 0.95 : 0.25)) return;
+
+      // Card: white bg, blue left accent bar
       s.addShape("rect", {
-        x:0.3, y:by, w:leftW, h:0.72,
-        fill:{color:"FFFFFF"}, line:{color:"E2E8F0", width:0.5},
+        x:0.3, y:by, w:leftW, h:bh,
+        fill:{color:"FFFFFF"}, line:{color:C.secondary, width:0.5},
         shadow:mkShadowSm(),
       });
-      s.addShape("rect", { x:0.3, y:by, w:0.07, h:0.72, fill:{color:C.teal}, line:{color:C.teal} });
-      s.addText(b, {
-        x:0.44, y:by+0.07, w:leftW-0.22, h:0.58,
-        fontSize:10, color:C.navy, fontFace:C.fontBody, valign:"middle", margin:0,
+      // Blue left accent
+      s.addShape("rect", { x:0.3, y:by, w:0.06, h:bh, fill:{color:C.secondary}, line:{color:C.secondary} });
+      // Extract bullet text - handle string, dict with 'text' key, or any object
+      let bulletText = "";
+      if (typeof b === 'string') {
+        bulletText = b;
+      } else if (typeof b === 'object' && b !== null) {
+        bulletText = b.text || b.content || b.value || JSON.stringify(b);
+      } else {
+        bulletText = String(b);
+      }
+      // Truncate bullet text to prevent overflow
+      const truncatedText = bulletText.split(' ').slice(0, 8).join(' ');
+      s.addText(truncatedText, {
+        x:0.42, y:by+0.06, w:leftW-0.18, h:bh-0.12,
+        fontSize:9.5, color:"000000", fontFace:C.fontBody, valign:"middle", margin:0,
       });
     });
   }
 
-  // ── Insight callout ──
+  // ── Highlight callout strip ──
   if (highlight) {
     s.addShape("rect", {
-      x:0.3, y:H-0.82, w:leftW, h:0.68,
-      fill:{color:C.navy}, line:{color:C.teal, width:1},
+      x:0.42, y:H-0.95, w:W-0.72, h:0.80,  // Increased height for better text fit
+      fill:{color:"FFFFFF"}, line:{color:"000080", width:1},
       shadow:mkShadow(),
     });
-    s.addText(highlight, {
-      x:0.3, y:H-0.82, w:leftW, h:0.68,
-      fontSize:9.5, bold:true, color:C.teal,
-      align:"center", valign:"middle", fontFace:C.fontBody, margin:5,
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
+    });
+    // Truncate highlight text to prevent overflow
+    const truncatedHighlight = highlight.split(' ').slice(0, 15).join(' ');
+    s.addText("▶  " + truncatedHighlight, {
+      x:0.42, y:H-0.95, w:W-0.72, h:0.80,
+      fontSize:10.5, bold:true, color:"000080",
+      align:"left", valign:"middle", fontFace:C.fontBody, margin:6,
     });
   }
 
   if (slide.speaker_notes) s.addNotes(slide.speaker_notes);
 }
 
-// ─── TABLE SLIDE ──────────────────────────────────────────────────────────────
+// ─── TABLE SLIDE ──────────────────────────────────────────────────────────────────────────────
 async function buildTable(s, slide, C) {
   const content   = slide.content || {};
   const tableData = content.table_data || {};
@@ -500,6 +560,7 @@ async function buildTable(s, slide, C) {
   const highlight = content.highlight_text || null;
   const bullets   = content.bullets || [];
 
+  // ── Header bar ──
   addSectionHeader(s, null, C);
   s.addText(slide.title || "", {
     x:0.45, y:0.1, w:W-0.9, h:0.62,
@@ -508,76 +569,125 @@ async function buildTable(s, slide, C) {
   });
 
   if (headers.length > 0 && rows.length > 0) {
-    const hasBullets = bullets.length > 0;
-    const tableW = hasBullets ? W * 0.62 : W - 0.8;
-    const tableY = 0.92;
-    // Reserve more space at bottom for highlight text: 0.82 (position) + 0.68 (height) + 0.3 (margin) = 1.8
-    const tableH = H - tableY - (highlight ? 1.8 : 0.3);
-    const colW   = tableW / headers.length;
-    
-    // Limit rows to prevent overflow - max 6 rows when highlight exists, 8 otherwise
-    const maxRows = highlight ? 6 : 8;
+    const tableY  = 0.97;
+    const tableH  = H - tableY - (highlight ? 0.95 : 0.25) - (bullets.length > 0 ? 0 : 0);  // Increased bottom margin
+    const tableW  = W - 0.6;
+    const maxRows = highlight ? 6 : 8;  // Reduced max rows to prevent overflow
     const limitedRows = rows.slice(0, maxRows);
+    const colCount = headers.length;
 
-    const headerRow = headers.map(h => ({
+    // Column widths: first col slightly wider (row labels)
+    const firstColW = tableW * 0.28;
+    const restColW  = (tableW - firstColW) / Math.max(colCount - 1, 1);
+    const colWidths = [firstColW, ...Array(Math.max(colCount - 1, 0)).fill(restColW)];
+
+    // ── Table card: white bg, blue border, blue top accent ──
+    s.addShape("rect", {
+      x:0.3, y:tableY, w:tableW, h:tableH,
+      fill:{color:"FFFFFF"}, line:{color:C.secondary, width:1},
+      shadow:mkShadow(),
+    });
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
+    });
+    s.addShape("rect", {
+      x:0.3, y:tableY, w:tableW, h:0.06,
+      fill:{color:C.secondary}, line:{color:C.secondary},
+    });
+
+    // ── Header row ──
+    const headerRow = headers.map((h, ci) => ({
       text: String(h),
       options: {
-        fill:{color:C.navy}, color:"FFFFFF", bold:true,
+        fill:{color:"FFFFFF"}, color:"000080", bold:true,
         fontSize:11, fontFace:C.fontBody,
-        align:"center", valign:"middle",
+        align: ci === 0 ? "left" : "center",
+        valign:"middle",
+        margin:[0, 8, 0, 8],
         border:{pt:0},
       },
     }));
 
-    const dataRows = limitedRows.map((row, ri) =>
-      (Array.isArray(row) ? row : [row]).map(cell => ({
+    // ── Data rows: alternating white / very light blue tint ──
+    const dataRows = limitedRows.map((row, ri) => {
+      const rowArr = Array.isArray(row) ? row : [row];
+      return rowArr.map((cell, ci) => ({
         text: String(cell ?? ""),
         options: {
-          fill:{color: ri % 2 === 0 ? "F8F9FA" : "FFFFFF"},
-          color:C.navy, fontSize:10, fontFace:C.fontBody,
-          align:"center", valign:"middle",
-          border:{pt:0.5, color:"E2E8F0"},
+          fill:{color: ri % 2 === 0 ? "FFFFFF" : "EEF3FF"},
+          color:"000000",
+          bold: ci === 0,   // first column bold (row label)
+          fontSize:10, fontFace:C.fontBody,
+          align: ci === 0 ? "left" : "center",
+          valign:"middle",
+          margin:[0, 8, 0, 8],
+          border:{pt:0.5, color:C.secondary},
         },
-      }))
-    );
+      }));
+    });
 
     s.addTable([headerRow, ...dataRows], {
-      x:0.4, y:tableY, w:tableW, h:tableH,
-      colW: Array(headers.length).fill(colW),
+      x:0.3, y:tableY, w:tableW, h:tableH,
+      colW: colWidths,
+      rowH: 0.42,
     });
-
-    // Right panel: insight bullets
-    if (hasBullets) {
-      const rx = 0.4 + tableW + 0.3;
-      const rw = W - rx - 0.25;
-      bullets.slice(0, 5).forEach((b, i) => {
-        const by = tableY + i * 0.82;
-        // Stop rendering bullets if they would overlap with highlight text
-        if (by + 0.72 > H - (highlight ? 1.8 : 0.25)) return;
-        s.addShape("rect", {
-          x:rx, y:by, w:rw, h:0.72,
-          fill:{color:"FFFFFF"}, line:{color:"E2E8F0", width:0.5},
-          shadow:mkShadowSm(),
-        });
-        s.addShape("rect", { x:rx, y:by, w:0.07, h:0.72, fill:{color:C.teal}, line:{color:C.teal} });
-        s.addText(b, {
-          x:rx+0.14, y:by+0.07, w:rw-0.22, h:0.58,
-          fontSize:10, color:C.navy, fontFace:C.fontBody, valign:"middle", margin:0,
-        });
-      });
-    }
   }
 
+  // ── Bullet insights as a horizontal strip below table ──
+  if (bullets.length > 0 && !highlight) {
+    const stripY = H - 0.72;
+    const bw = (W - 0.6 - (bullets.length - 1) * 0.12) / Math.min(bullets.length, 4);
+    bullets.slice(0, 4).forEach((b, i) => {
+      const bx = 0.3 + i * (bw + 0.12);
+      // White bg, blue left border, black text
+      s.addShape("rect", {
+        x:bx, y:stripY, w:bw, h:0.54,
+        fill:{color:"FFFFFF"}, line:{color:C.secondary, width:0.5},
+        shadow:mkShadowSm(),
+      });
+      s.addShape("rect", {
+        x:bx, y:stripY, w:0.06, h:0.54,
+        fill:{color:C.secondary}, line:{color:C.secondary},
+      });
+      // Extract bullet text - handle string, dict with 'text' key, or any object
+      let bulletText = "";
+      if (typeof b === 'string') {
+        bulletText = b;
+      } else if (typeof b === 'object' && b !== null) {
+        bulletText = b.text || b.content || b.value || JSON.stringify(b);
+      } else {
+        bulletText = String(b);
+      }
+      s.addText(bulletText, {
+        x:bx+0.12, y:stripY+0.04, w:bw-0.20, h:0.46,
+        fontSize:8.5, color:"000000", fontFace:C.fontBody,
+        align:"left", valign:"middle", margin:4,
+      });
+    });
+  }
+
+  // ── Highlight callout strip ──
   if (highlight) {
     s.addShape("rect", {
-      x:0.4, y:H-0.82, w:W-0.8, h:0.68,
-      fill:{color:C.teal}, line:{color:C.teal},
+      x:0.42, y:H-0.95, w:W-0.72, h:0.80,  // Increased height for better text fit
+      fill:{color:"FFFFFF"}, line:{color:"000080", width:1},
       shadow:mkShadow(),
     });
-    s.addText("▶  " + highlight, {
-      x:0.4, y:H-0.82, w:W-0.8, h:0.68,
-      fontSize:11, bold:true, color:C.dark,
-      align:"center", valign:"middle", fontFace:C.fontBody, margin:6,
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
+    });
+    // Truncate highlight text to prevent overflow
+    const truncatedHighlight = highlight.split(' ').slice(0, 15).join(' ');
+    s.addText("▶  " + truncatedHighlight, {
+      x:0.42, y:H-0.95, w:W-0.72, h:0.80,
+      fontSize:10.5, bold:true, color:"000080",
+      align:"left", valign:"middle", fontFace:C.fontBody, margin:6,
     });
   }
 
@@ -620,36 +730,45 @@ async function buildComparison(s, slide, C) {
 
   const colW = (W - 1.0) / 2;
   const colY = 0.92;
-  const colH = H - colY - (highlight ? 0.95 : 0.3);
+  const colH = H - colY - (highlight ? 0.95 : 0.25);  // Increased bottom margin for highlight
 
   // ── Left column ──
   s.addShape("rect", {
     x:0.3, y:colY, w:colW, h:colH,
-    fill:{color:"FFFFFF"}, line:{color:"E2E8F0", width:1},
-    shadow:mkShadow(),
+    fill:{color:"FFFFFF"}, line:{color:"000080", width:1},
   });
-  s.addShape("rect", { x:0.3, y:colY, w:colW, h:0.55, fill:{color:C.navy}, line:{color:C.navy} });
+  s.addShape("rect", { x:0.3, y:colY, w:colW, h:0.55, fill:{color:"FFFFFF"}, line:{color:"000080", width:2} });
   s.addText(leftH, {
     x:0.3, y:colY, w:colW, h:0.55,
-    fontSize:14, bold:true, color:"FFFFFF",
+    fontSize:14, bold:true, color:"000080",
     align:"center", valign:"middle", fontFace:C.fontHeader, margin:0,
   });
 
-  leftItems.slice(0, 6).forEach((item, i) => {
-    const iy = colY + 0.62 + i * 0.68;
-    if (iy + 0.6 > H - (highlight ? 1.0 : 0.25)) return;
+  leftItems.slice(0, 4).forEach((item, i) => {  // Limit to 4 items max
+    const iy = colY + 0.62 + i * 0.55;
+    // Strict overflow check - use >= to prevent touching boundaries
+    if (iy + 0.50 >= colY + colH) return;
     s.addShape("rect", {
-      x:0.35, y:iy, w:colW-0.1, h:0.6,
-      fill:{color:"F8FAFC"}, line:{color:"E2E8F0", width:0.5},
+      x:0.35, y:iy, w:colW-0.1, h:0.50,
+      fill:{color:"FFFFFF"}, line:{color:"000080", width:0.5},
     });
-    // Handle item as string or object with text field
-    const itemText = typeof item === 'string' ? item : (item?.text || JSON.stringify(item));
-    console.log(`[DEBUG] Left item ${i}: type=${typeof item}, value=${JSON.stringify(item)}, extracted=${itemText}`);
+    // Extract item text - handle string, dict with 'text' key, or any object
+    let itemText = "";
+    if (typeof item === 'string') {
+      itemText = item;
+    } else if (typeof item === 'object' && item !== null) {
+      itemText = item.text || item.content || item.value || JSON.stringify(item);
+    } else {
+      itemText = String(item);
+    }
+    // Truncate item text to prevent overflow
+    const truncatedText = itemText.split(' ').slice(0, 8).join(' ');
+    console.log(`[DEBUG] Left item ${i}: type=${typeof item}, value=${JSON.stringify(item)}, extracted=${truncatedText}`);
     s.addText([
-      { text:"›  ", options:{color:C.navy, bold:true} },
-      { text:itemText, options:{color:C.navy} },
+      { text:"›  ", options:{color:"000080", bold:true} },
+      { text:truncatedText, options:{color:"000000"} },
     ], {
-      x:0.42, y:iy+0.05, w:colW-0.24, h:0.5,
+      x:0.42, y:iy+0.04, w:colW-0.24, h:0.42,
       fontSize:10.5, fontFace:C.fontBody, valign:"middle", margin:0,
     });
   });
@@ -658,51 +777,68 @@ async function buildComparison(s, slide, C) {
   const rx = 0.3 + colW + 0.4;
   s.addShape("rect", {
     x:rx, y:colY, w:colW, h:colH,
-    fill:{color:"FFFFFF"}, line:{color:"E2E8F0", width:1},
-    shadow:mkShadow(),
+    fill:{color:"FFFFFF"}, line:{color:"000080", width:1},
   });
-  s.addShape("rect", { x:rx, y:colY, w:colW, h:0.55, fill:{color:C.teal}, line:{color:C.teal} });
+  s.addShape("rect", { x:rx, y:colY, w:colW, h:0.55, fill:{color:"FFFFFF"}, line:{color:"000080", width:2} });
   s.addText(rightH, {
     x:rx, y:colY, w:colW, h:0.55,
-    fontSize:14, bold:true, color:C.dark,
+    fontSize:14, bold:true, color:"000080",
     align:"center", valign:"middle", fontFace:C.fontHeader, margin:0,
   });
 
-  rightItems.slice(0, 6).forEach((item, i) => {
-    const iy = colY + 0.62 + i * 0.68;
-    if (iy + 0.6 > H - (highlight ? 1.0 : 0.25)) return;
+  rightItems.slice(0, 4).forEach((item, i) => {  // Limit to 4 items max
+    const iy = colY + 0.62 + i * 0.55;
+    // Strict overflow check - use >= to prevent touching boundaries
+    if (iy + 0.50 >= colY + colH) return;
     s.addShape("rect", {
-      x:rx+0.05, y:iy, w:colW-0.1, h:0.6,
-      fill:{color:"F8FAFC"}, line:{color:"E2E8F0", width:0.5},
+      x:rx+0.05, y:iy, w:colW-0.1, h:0.50,
+      fill:{color:"FFFFFF"}, line:{color:"000080", width:0.5},
     });
-    // Handle item as string or object with text field
-    const itemText = typeof item === 'string' ? item : (item?.text || JSON.stringify(item));
-    console.log(`[DEBUG] Right item ${i}: type=${typeof item}, value=${JSON.stringify(item)}, extracted=${itemText}`);
+    // Extract item text - handle string, dict with 'text' key, or any object
+    let itemText = "";
+    if (typeof item === 'string') {
+      itemText = item;
+    } else if (typeof item === 'object' && item !== null) {
+      itemText = item.text || item.content || item.value || JSON.stringify(item);
+    } else {
+      itemText = String(item);
+    }
+    // Truncate item text to prevent overflow
+    const truncatedText = itemText.split(' ').slice(0, 8).join(' ');
+    console.log(`[DEBUG] Right item ${i}: type=${typeof item}, value=${JSON.stringify(item)}, extracted=${truncatedText}`);
     s.addText([
-      { text:"›  ", options:{color:C.teal, bold:true} },
-      { text:itemText, options:{color:C.navy} },
+      { text:"›  ", options:{color:"000080", bold:true} },
+      { text:truncatedText, options:{color:"000000"} },
     ], {
-      x:rx+0.12, y:iy+0.05, w:colW-0.24, h:0.5,
+      x:rx+0.12, y:iy+0.04, w:colW-0.24, h:0.42,
       fontSize:10.5, fontFace:C.fontBody, valign:"middle", margin:0,
     });
   });
 
-  // Vertical divider
-  s.addShape("rect", {
-    x:0.3 + colW + 0.18, y:colY, w:0.04, h:colH,
-    fill:{color:"CBD5E1"}, line:{color:"CBD5E1"},
+  // Vertical divider - Navy Blue line only (no fill)
+  s.addShape("line", {
+    x:0.3 + colW + 0.20, y:colY, w:0, h:colH,
+    line:{color:"000080", width:2},
   });
 
   if (highlight) {
     s.addShape("rect", {
-      x:0.3, y:H-0.82, w:W-0.6, h:0.68,
-      fill:{color:C.navy}, line:{color:C.teal, width:1},
+      x:0.42, y:H-0.95, w:W-0.72, h:0.80,  // Increased height for better text fit
+      fill:{color:"FFFFFF"}, line:{color:"000080", width:1},
       shadow:mkShadow(),
     });
-    s.addText(highlight, {
-      x:0.3, y:H-0.82, w:W-0.6, h:0.68,
-      fontSize:10, bold:true, color:C.teal,
-      align:"center", valign:"middle", fontFace:C.fontBody, margin:5,
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
+    });
+    // Truncate highlight text to prevent overflow
+    const truncatedHighlight = highlight.split(' ').slice(0, 15).join(' ');
+    s.addText("▶  " + truncatedHighlight, {
+      x:0.42, y:H-0.95, w:W-0.72, h:0.80,
+      fontSize:10.5, bold:true, color:"000080",
+      align:"left", valign:"middle", fontFace:C.fontBody, margin:6,
     });
   }
 
@@ -730,20 +866,32 @@ async function buildMetric(s, slide, C) {
   const cardH = H - 1.05;
   s.addShape("rect", {
     x:0.3, y:0.92, w:cardW, h:cardH,
-    fill:{color:C.navy}, line:{color:C.teal, width:1.5},
+    fill:{color:"FFFFFF"}, line:{color:"000080", width:2},
     shadow:mkShadow(),
+    });
+    // Navy Blue left accent strip (0.12" wide)
+    s.addShape("rect", {
+      x:0.3, y:H-0.95, w:0.12, h:0.80,
+      fill:{color:"000080"}, line:{color:"000080"},
+
   });
 
-  // Icon
+  // Icon — white circle, blue icon
   if (iconName) {
-    const ic = await iconToBase64(iconName, "#" + C.teal, 256);
-    if (ic) s.addImage({ data:ic, x:0.3+cardW/2-0.4, y:1.05, w:0.8, h:0.8 });
+    const ic = await iconToBase64(iconName, "#FFFFFF", 256);
+    if (ic) {
+      s.addShape("ellipse", {
+        x:0.3+cardW/2-0.5, y:1.00, w:1.0, h:1.0,
+        fill:{color:"FFFFFF"}, line:{color:"000080", width:1.5},
+      });
+      s.addImage({ data:ic, x:0.3+cardW/2-0.4, y:1.05, w:0.8, h:0.8 });
+    }
   }
 
   // Big number
   s.addText(val, {
     x:0.3, y:1.95, w:cardW, h:1.4,
-    fontSize:56, bold:true, color:"FFFFFF",
+    fontSize:56, bold:true, color:"000080",
     align:"center", valign:"middle", fontFace:C.fontHeader, margin:0,
   });
 
@@ -757,11 +905,7 @@ async function buildMetric(s, slide, C) {
 
   // Trend badge
   if (trend) {
-    const trendColor = trend.includes("+") || trend.includes("▲") || trend.toLowerCase().includes("up")
-      ? "22C55E"
-      : trend.includes("-") || trend.includes("▼") || trend.toLowerCase().includes("down")
-      ? "EF4444"
-      : C.gold;
+    const trendColor = "000080";
     s.addShape("rect", {
       x:0.3+cardW/2-1.0, y:3.95, w:2.0, h:0.38,
       fill:{color:trendColor, transparency:15}, line:{color:trendColor, width:0.5},
@@ -778,21 +922,37 @@ async function buildMetric(s, slide, C) {
   const rw = W - rx - 0.25;
   bullets.slice(0, 4).forEach((b, i) => {
     const by = 0.97 + i * 1.08;
-    if (by + 0.95 > H - 0.15) return;
+    // Strict overflow check - use >= to prevent touching boundaries
+    if (by + 0.95 >= H - 0.25) return;  // Increased bottom margin from 0.15 to 0.25
+    // White bg, blue left border, black text
     s.addShape("rect", {
       x:rx, y:by, w:rw, h:0.95,
-      fill:{color:"FFFFFF"}, line:{color:"E2E8F0", width:0.5},
+      fill:{color:"FFFFFF"}, line:{color:"000080", width:0.5},
       shadow:mkShadowSm(),
     });
-    s.addShape("rect", { x:rx, y:by, w:0.5, h:0.95, fill:{color:C.navy}, line:{color:C.navy} });
+    // Blue left accent strip
+    s.addShape("rect", { x:rx, y:by, w:0.06, h:0.95, fill:{color:"000080"}, line:{color:"000080"} });
+    // Number badge — white bg, Navy Blue border and number
+    s.addShape("rect", { x:rx+0.12, y:by+0.22, w:0.45, h:0.50, fill:{color:"FFFFFF"}, line:{color:"000080", width:1.5} });
     s.addText(String(i + 1), {
-      x:rx, y:by, w:0.5, h:0.95,
-      fontSize:14, bold:true, color:C.teal,
+      x:rx+0.12, y:by+0.22, w:0.45, h:0.50,
+      fontSize:13, bold:true, color:"000080",
       align:"center", valign:"middle", fontFace:C.fontHeader, margin:0,
     });
-    s.addText(b, {
-      x:rx+0.58, y:by+0.08, w:rw-0.68, h:0.79,
-      fontSize:11, color:C.navy, fontFace:C.fontBody, valign:"middle", margin:0,
+    // Extract bullet text - handle string, dict with 'text' key, or any object
+    let bulletText = "";
+    if (typeof b === 'string') {
+      bulletText = b;
+    } else if (typeof b === 'object' && b !== null) {
+      bulletText = b.text || b.content || b.value || JSON.stringify(b);
+    } else {
+      bulletText = String(b);
+    }
+    // Truncate bullet text to prevent overflow
+    const truncatedText = bulletText.split(' ').slice(0, 8).join(' ');
+    s.addText(truncatedText, {
+      x:rx+0.65, y:by+0.08, w:rw-0.75, h:0.79,
+      fontSize:11, color:"000000", fontFace:C.fontBody, valign:"middle", margin:0,
     });
   });
 

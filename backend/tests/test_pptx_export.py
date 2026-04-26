@@ -205,7 +205,7 @@ class TestSlideTypeMapping:
     
     def test_title_slide_creation(self, sample_title_slide):
         """Test title slide is created with correct layout."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_title_slide])
         
         assert isinstance(pptx_bytes, bytes)
@@ -224,7 +224,7 @@ class TestSlideTypeMapping:
     
     def test_content_slide_creation(self, sample_content_slide):
         """Test content slide is created with bullets."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_content_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -238,7 +238,7 @@ class TestSlideTypeMapping:
     
     def test_chart_slide_creation(self, sample_chart_slide):
         """Test chart slide is created with chart."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_chart_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -252,7 +252,7 @@ class TestSlideTypeMapping:
     
     def test_table_slide_creation(self, sample_table_slide):
         """Test table slide is created with table."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_table_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -266,7 +266,7 @@ class TestSlideTypeMapping:
     
     def test_comparison_slide_creation(self, sample_comparison_slide):
         """Test comparison slide is created with two columns."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_comparison_slide])
 
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -274,7 +274,7 @@ class TestSlideTypeMapping:
 
     def test_metric_slide_creation(self, sample_metric_slide):
         """Test metric/KPI slide is created with large number display."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_metric_slide])
 
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -282,7 +282,7 @@ class TestSlideTypeMapping:
 
     def test_all_slide_types(self, all_slide_types):
         """Test all slide types can be created in one presentation."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build(all_slide_types)
 
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -298,40 +298,40 @@ class TestThemeApplication:
     
     def test_Corporate_theme(self, sample_content_slide):
         """Test Corporate theme colors are applied."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
         assert len(pptx_bytes) > 0
         
         # Verify theme was set
-        assert builder.theme_name == "corporate"
-        assert builder.theme_colors == ThemeColors.Corporate
+        assert builder.theme_name == "hexaware_corporate"
+        assert builder.theme_colors == ThemeColors.HEXAWARE_CORPORATE
     def test_Professional_theme(self, sample_content_slide):
         """Test Professional theme colors are applied."""
-        builder = PPTXBuilder("professional")
+        builder = PPTXBuilder("hexaware_professional")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
-        assert builder.theme_name == "professional"
-        assert builder.theme_colors == ThemeColors.Professional
+        assert builder.theme_name == "hexaware_professional"
+        assert builder.theme_colors == ThemeColors.HEXAWARE_PROFESSIONAL
     
     def test_dark_modern_theme(self, sample_content_slide):
         """Test Dark Modern theme colors are applied."""
-        builder = PPTXBuilder("dark_modern")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
-        assert builder.theme_name == "dark_modern"
-        assert builder.theme_colors == ThemeColors.DARK_MODERN
+        assert builder.theme_name == "hexaware_corporate"
+        assert builder.theme_colors == ThemeColors.HEXAWARE_CORPORATE
     
     def test_dark_modern_theme_with_hyphen(self, sample_content_slide):
         """Test Dark Modern theme with hyphen notation."""
-        builder = PPTXBuilder("dark-modern")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
-        assert builder.theme_colors == ThemeColors.DARK_MODERN
+        assert builder.theme_colors == ThemeColors.HEXAWARE_CORPORATE
     
     def test_invalid_theme_defaults_to_Corporate(self, sample_content_slide):
         """Test invalid theme defaults to Corporate."""
@@ -339,11 +339,11 @@ class TestThemeApplication:
         pptx_bytes = builder.build([sample_content_slide])
         
         assert isinstance(pptx_bytes, bytes)
-        assert builder.theme_colors == ThemeColors.Corporate
+        assert builder.theme_colors == ThemeColors.HEXAWARE_CORPORATE
     
     def test_theme_colors_in_chart(self, sample_chart_slide):
         """Test theme colors are applied to charts."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_chart_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -380,7 +380,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -403,7 +403,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -423,7 +423,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -447,7 +447,7 @@ class TestChartRendering:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -473,7 +473,7 @@ class TestChartRendering:
                 }
             }
         }
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         prs = PptxPresentation(BytesIO(pptx_bytes))
         assert len(prs.slides) == 1
@@ -494,7 +494,7 @@ class TestChartRendering:
                 }
             }
         }
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         prs = PptxPresentation(BytesIO(pptx_bytes))
         assert len(prs.slides) == 1
@@ -515,7 +515,7 @@ class TestChartRendering:
                 ]
             }
         }
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         prs = PptxPresentation(BytesIO(pptx_bytes))
         assert len(prs.slides) == 1
@@ -533,7 +533,7 @@ class TestTableRendering:
     
     def test_basic_table_rendering(self, sample_table_slide):
         """Test basic table is rendered with headers and rows."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_table_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -558,7 +558,7 @@ class TestTableRendering:
     
     def test_table_header_formatting(self, sample_table_slide):
         """Test table headers are formatted correctly."""
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([sample_table_slide])
         
         prs = PptxPresentation(BytesIO(pptx_bytes))
@@ -589,7 +589,7 @@ class TestTableRendering:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         # Should not crash
@@ -615,7 +615,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         # Should not crash
@@ -632,7 +632,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -648,7 +648,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -663,7 +663,7 @@ class TestTransitionMapping:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -733,7 +733,7 @@ class TestPerformanceValidation:
         # Measure export time
         start_time = time.time()
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build(slides)
         
         end_time = time.time()
@@ -766,7 +766,7 @@ class TestPerformanceValidation:
             ]
             
             start_time = time.time()
-            builder = PPTXBuilder("corporate")
+            builder = PPTXBuilder("hexaware_corporate")
             pptx_bytes = builder.build(slides)
             elapsed = time.time() - start_time
             
@@ -787,7 +787,7 @@ class TestBuildPptxFunction:
     
     def test_build_pptx_with_valid_data(self, all_slide_types):
         """Test build_pptx function with valid data."""
-        pptx_bytes = build_pptx(all_slide_types, "corporate")
+        pptx_bytes = build_pptx(all_slide_types, "hexaware_corporate")
         
         assert isinstance(pptx_bytes, bytes)
         assert len(pptx_bytes) > 0
@@ -797,7 +797,7 @@ class TestBuildPptxFunction:
     
     def test_build_pptx_with_empty_list(self):
         """Test build_pptx with empty slide list."""
-        pptx_bytes = build_pptx([], "corporate")
+        pptx_bytes = build_pptx([], "hexaware_corporate")
         
         assert isinstance(pptx_bytes, bytes)
         assert len(pptx_bytes) > 0
@@ -805,11 +805,11 @@ class TestBuildPptxFunction:
     def test_build_pptx_with_invalid_data_type(self):
         """Test build_pptx raises error for invalid data type."""
         with pytest.raises(ValueError, match="slides_data must be a list"):
-            build_pptx("not a list", "corporate")
+            build_pptx("not a list", "hexaware_corporate")
     
     def test_build_pptx_with_all_themes(self, sample_content_slide):
         """Test build_pptx works with all themes."""
-        themes = ["corporate", "executive", "professional", "dark_modern", "dark-modern"]
+        themes = ["hexaware_corporate", "hexaware_corporate", "hexaware_professional", "hexaware_corporate", "hexaware_corporate"]
         
         for theme in themes:
             pptx_bytes = build_pptx([sample_content_slide], theme)
@@ -831,7 +831,7 @@ class TestEdgeCases:
             "title": "No Content"
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -843,7 +843,7 @@ class TestEdgeCases:
             "content": {"bullets": ["Test"]}
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)
@@ -862,7 +862,7 @@ class TestEdgeCases:
             }
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         # Should not crash
@@ -876,7 +876,7 @@ class TestEdgeCases:
             "content": {"bullets": ["Test"]}
         }
         
-        builder = PPTXBuilder("corporate")
+        builder = PPTXBuilder("hexaware_corporate")
         pptx_bytes = builder.build([slide_data])
         
         assert isinstance(pptx_bytes, bytes)

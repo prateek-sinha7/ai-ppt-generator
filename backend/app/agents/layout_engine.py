@@ -160,6 +160,7 @@ def calculate_content_density(slide: dict[str, Any]) -> DensityResult:
 
     Density model:
     - Each bullet contributes 0.15 (max 4 bullets → 0.60)
+    - Highlight text contributes 0.12
     - Chart data contributes 0.40
     - Table data contributes 0.40
     - Comparison data contributes 0.35
@@ -174,12 +175,15 @@ def calculate_content_density(slide: dict[str, Any]) -> DensityResult:
     """
     content = slide.get("content", {})
     bullets: list = content.get("bullets") or []
+    has_highlight = bool(content.get("highlight_text"))
     has_chart = bool(content.get("chart_data"))
     has_table = bool(content.get("table_data"))
     has_comparison = bool(content.get("comparison_data"))
 
     density = 0.10  # base for title
     density += min(len(bullets), 4) * 0.15
+    if has_highlight:
+        density += 0.12  # Added highlight text contribution
     if has_chart:
         density += 0.40
     if has_table:

@@ -402,6 +402,80 @@ class QualityScoringAgent(LLMEnhancementHelper):
             score -= 1.0
             recommendations.append("Add more visual elements (icons, highlights) for engagement")
         
+        # ── Branding compliance: fixed ZONE layout on title slides ─────────
+        # Mirrors the ZONE constants in builder.js:
+        #   Logo      : x=8.45" y=0.12" w=1.4" h=0.35"
+        #   Info row  : y=4.42" h=0.25"  (Prepared by / Date / Classification)
+        #   KPI cards : y=4.70" h=0.72"  max 4 cards
+        #   Copyright : y=5.445" h=0.18" (inside teal strip)
+        KPI_MAX       = 4
+        KPI_H_INCHES  = 0.72
+        MAX_BADGE_WORDS = 12
+        title_slides = [s for s in slides if self._get_slide_type(s) == "title"]
+        branding_violations = 0
+
+        for ts in title_slides:
+            ts_content = ts.get("content", {})
+
+            # Icon collides with logo (x=8.45" y=0.12")
+            if ts_content.get("icon_name"):
+                branding_violations += 1
+                recommendations.append(
+                    f"Remove icon_name='{ts_content['icon_name']}' from title slide "
+                    f"'{ts.get('title', '')[:35]}' — icons render at x≈8.5\" y≈0.5\" "
+                    "and overlap the Hexaware logo (x=8.45\" y=0.12\")."
+                )
+
+            # Too many KPI badges overflow slide width
+            badges = ts_content.get("bullets", [])
+            if len(badges) > KPI_MAX:
+                branding_violations += 1
+                recommendations.append(
+                    f"Reduce KPI badges on title slide to ≤ {KPI_MAX} (currently {len(badges)}). "
+                    f"Cards are 2.15\" wide; a 5th card overflows the 10\" slide width."
+                )
+
+            # Individual badge text too long for 0.72" card height
+            for j, badge in enumerate(badges[:KPI_MAX]):
+                badge_text = badge if isinstance(badge, str) else str(badge)
+                if len(badge_text.split()) > MAX_BADGE_WORDS:
+                    branding_violations += 1
+                    recommendations.append(
+                        f"KPI badge {j+1} on title slide has {len(badge_text.split())} words "
+                        f"(max {MAX_BADGE_WORDS}). Cards are {KPI_H_INCHES}\" tall at 9.5pt — "
+                        "long text overflows the card boundary."
+                    )
+
+            # Subtitle too long wraps into logo zone
+            subtitle = ts_content.get("subtitle", "")
+            if len(subtitle) > 60:
+                branding_violations += 1
+                recommendations.append(
+                    f"Shorten title slide subtitle to ≤ 60 chars (currently {len(subtitle)}). "
+                    "Long subtitles wrap and may push content toward the logo zone (x>8.45\")."
+                )
+
+            # Title too long pushes subtitle toward fixed info row at y=4.42"
+            title_words = len(ts.get("title", "").split())
+            if title_words > 10:
+                branding_violations += 1
+                recommendations.append(
+                    f"Shorten title slide title to ≤ 10 words (currently {title_words}). "
+                    "Long titles grow the title box and may push the subtitle past y=3.0\", "
+                    "crowding the fixed info row at y=4.42\"."
+                )
+
+        details["branding_violations"] = branding_violations
+        details["title_slides_checked"] = len(title_slides)
+
+        if branding_violations > 0:
+            score -= min(2.0, branding_violations * 0.5)
+            logger.info(
+                "branding_violations_detected",
+                violations=branding_violations,
+                title_slides=len(title_slides),
+            )
+
         # Ensure score stays in bounds
         score = max(1.0, min(10.0, score))
         

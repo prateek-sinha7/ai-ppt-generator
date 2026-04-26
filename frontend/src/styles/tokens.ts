@@ -41,52 +41,31 @@ export const fontFamily = {
 } as const
 
 // ---------------------------------------------------------------------------
-// Theme Palettes
+// Theme Palettes — Hexaware Brand Only
+// Two palettes are supported. No other themes exist.
 // ---------------------------------------------------------------------------
 export const themes = {
-  executive: {
-    primary:   '#003366',
-    secondary: '#0066CC',
-    accent:    '#FF6600',
+  'hexaware_corporate': {
+    primary:   '#0A2240',   // deep navy
+    secondary: '#000080',   // Navy Blue
+    accent:    '#000080',   // Navy Blue
     bg:        '#FFFFFF',
-    surface:   '#F5F7FA',
+    surface:   '#F4F6FB',
     text:      '#1A1A2E',
-    muted:     '#6B7280',
-    border:    '#D1D5DB',
-    highlight: '#FFF3E0',
+    muted:     '#5A6A7A',
+    border:    '#C8D7EB',
+    highlight: '#EBF0FB',
   },
-  professional: {
-    primary:   '#86BC25',
-    secondary: '#0076A8',
-    accent:    '#00A3E0',
+  'hexaware_professional': {
+    primary:   '#0D0D0D',   // near-black
+    secondary: '#000080',   // Navy Blue
+    accent:    '#FF6B35',   // Hexaware orange
     bg:        '#FFFFFF',
-    surface:   '#F0F4F8',
-    text:      '#1C1C1C',
-    muted:     '#6B7280',
-    border:    '#D1D5DB',
-    highlight: '#E8F5E9',
-  },
-  'dark-modern': {
-    primary:   '#6C63FF',
-    secondary: '#FF6584',
-    accent:    '#43E97B',
-    bg:        '#0F0F1A',
-    surface:   '#1A1A2E',
-    text:      '#E8E8F0',
-    muted:     '#9CA3AF',
-    border:    '#374151',
-    highlight: '#1E1B4B',
-  },
-  corporate: {
-    primary:   '#002855',
-    secondary: '#005288',
-    accent:    '#0078AC',
-    bg:        '#FFFFFF',
-    surface:   '#F5F7FA',
-    text:      '#212121',
-    muted:     '#646464',
-    border:    '#D2DAE2',
-    highlight: '#E8F0F8',
+    surface:   '#F7F7F7',
+    text:      '#1A1A1A',
+    muted:     '#5A5A6A',
+    border:    '#DCDCDC',
+    highlight: '#FFF0EA',
   },
 } as const
 
@@ -147,7 +126,7 @@ export const VALID_SPACING_TOKENS = new Set(Object.keys(spacing))
 export const VALID_TYPOGRAPHY_TOKENS = new Set(Object.keys(fontSize))
 
 /** All valid theme names. */
-export const VALID_THEME_NAMES = new Set(Object.keys(themes)) as Set<Theme>
+export const VALID_THEME_NAMES = new Set(['hexaware_corporate', 'hexaware_professional']) as Set<Theme>
 
 // ---------------------------------------------------------------------------
 // Consolidated export (for Tailwind config)

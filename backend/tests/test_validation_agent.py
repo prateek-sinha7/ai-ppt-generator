@@ -702,9 +702,8 @@ class TestLayoutInstructionTokenValidation:
         assert "8" in VALID_SPACING_TOKENS   # 32px
         assert "slide-title" in VALID_TYPOGRAPHY_TOKENS
         assert "slide-caption" in VALID_TYPOGRAPHY_TOKENS
-        assert "executive" in VALID_THEME_NAMES
-        assert "professional" in VALID_THEME_NAMES
-        assert "dark-modern" in VALID_THEME_NAMES
+        assert "hexaware_corporate" in VALID_THEME_NAMES
+        assert "hexaware_professional" in VALID_THEME_NAMES
 
     def test_spacing_instruction_keys_set(self):
         assert "padding" in SPACING_INSTRUCTION_KEYS

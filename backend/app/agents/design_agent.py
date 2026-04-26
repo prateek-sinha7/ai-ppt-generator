@@ -77,61 +77,39 @@ class DesignSpec:
 # ---------------------------------------------------------------------------
 
 FALLBACK_PALETTES: Dict[str, DesignSpec] = {
-    "executive": DesignSpec(
-        primary_color="002F6C",
-        secondary_color="0077C8",
-        accent_color="FFB81C",
-        text_color="1A1A1A",
-        text_light_color="4A4A4A",
+    # ── Hexaware Corporate ────────────────────────────────────────────────────
+    # Deep navy primary, electric blue accent, white content slides.
+    # Formal enterprise decks, client-facing proposals, board presentations.
+    "hexaware_corporate": DesignSpec(
+        primary_color="0A2240",
+        secondary_color="000080",
+        accent_color="000080",
+        text_color="1A1A2E",
+        text_light_color="5A6A7A",
         background_color="FFFFFF",
-        background_dark_color="002F6C",
-        chart_colors=["0077C8", "FFB81C", "00A651", "ED1C24", "8DC63F"],
-        font_header="Georgia",
+        background_dark_color="060F1E",
+        chart_colors=["000080", "FF6B35", "22C55E", "E63946", "F5A623"],
+        font_header="Calibri",
         font_body="Calibri",
         motif="left-bar",
-        palette_name="Midnight Executive",
+        palette_name="Hexaware Corporate",
     ),
-    "professional": DesignSpec(
-        primary_color="000000",
-        secondary_color="86BC25",
-        accent_color="00B4CC",
+    # ── Hexaware Professional ─────────────────────────────────────────────────
+    # Near-black primary, Hexaware orange accent, crisp white background.
+    # Analyst briefings, technical deep-dives, innovation showcases.
+    "hexaware_professional": DesignSpec(
+        primary_color="0D0D0D",
+        secondary_color="000080",
+        accent_color="FF6B35",
         text_color="1A1A1A",
-        text_light_color="4A4A4A",
+        text_light_color="5A5A6A",
         background_color="FFFFFF",
         background_dark_color="000000",
-        chart_colors=["86BC25", "00B4CC", "FF8C00", "662D91", "009639"],
-        font_header="Arial Black",
+        chart_colors=["FF6B35", "000080", "22C55E", "E63946", "F5A623"],
+        font_header="Arial",
         font_body="Arial",
         motif="corner-accent",
-        palette_name="Charcoal Minimal",
-    ),
-    "dark_modern": DesignSpec(
-        primary_color="1E2761",
-        secondary_color="CADCFC",
-        accent_color="FFFFFF",
-        text_color="DCDCDC",
-        text_light_color="A0A0A0",
-        background_color="121212",
-        background_dark_color="0A0A0A",
-        chart_colors=["CADCFC", "FFFFFF", "7EC8E3", "A8D8EA", "B8D4E8"],
-        font_header="Calibri",
-        font_body="Calibri Light",
-        motif="glow-dot",
-        palette_name="Midnight Executive",
-    ),
-    "corporate": DesignSpec(
-        primary_color="002855",
-        secondary_color="005288",
-        accent_color="0078AC",
-        text_color="212121",
-        text_light_color="646464",
-        background_color="FFFFFF",
-        background_dark_color="002855",
-        chart_colors=["002855", "005288", "0078AC", "4682B4", "8CAAC8"],
-        font_header="Calibri",
-        font_body="Calibri",
-        motif="left-bar",
-        palette_name="Corporate Navy",
+        palette_name="Hexaware Professional",
     ),
 }
 
@@ -151,18 +129,10 @@ INDUSTRY_PALETTE_HINTS: Dict[str, str] = {
 
 # Available palettes for the LLM to choose from
 AVAILABLE_PALETTES = """
-| Name | Primary | Secondary | Accent |
-|------|---------|-----------|--------|
-| Midnight Executive | 1E2761 (navy) | CADCFC (ice blue) | FFFFFF (white) |
-| Forest & Moss | 2C5F2D (forest) | 97BC62 (moss) | F5F5F5 (cream) |
-| Coral Energy | F96167 (coral) | F9E795 (gold) | 2F3C7E (navy) |
-| Warm Terracotta | B85042 (terracotta) | E7E8D1 (sand) | A7BEAE (sage) |
-| Ocean Gradient | 065A82 (deep blue) | 1C7293 (teal) | 21295C (midnight) |
-| Charcoal Minimal | 36454F (charcoal) | F2F2F2 (off-white) | 212121 (black) |
-| Teal Trust | 028090 (teal) | 00A896 (seafoam) | 02C39A (mint) |
-| Berry & Cream | 6D2E46 (berry) | A26769 (dusty rose) | ECE2D0 (cream) |
-| Sage Calm | 84B59F (sage) | 69A297 (eucalyptus) | 50808E (slate) |
-| Cherry Bold | 990011 (cherry) | FCF6F5 (off-white) | 2F3C7E (navy) |
+| Name                   | Primary   | Secondary | Accent    | Use when                                      |
+|------------------------|-----------|-----------|-----------|-----------------------------------------------|
+| Hexaware Corporate     | 0A2240    | 000080    | 000080    | Formal enterprise, board, client proposals    |
+| Hexaware Professional  | 0D0D0D    | 000080    | FF6B35    | Analyst briefings, tech deep-dives, innovation|
 """
 
 AVAILABLE_MOTIFS = """
@@ -201,52 +171,44 @@ class DesignAgent:
     Falls back to a built-in palette if the LLM call fails.
     """
 
-    DESIGN_SYSTEM_PROMPT = """You are a senior presentation designer at a top consulting firm.
-Your job is to choose a visual design system for a slide deck on a specific topic.
+    DESIGN_SYSTEM_PROMPT = """You are a senior presentation designer at Hexaware Technologies.
+Your job is to select the correct Hexaware-branded design variant for a slide deck.
 
-Design principles you MUST follow:
-- Pick a bold, content-informed color palette: it should feel designed for THIS topic specifically.
-  If swapping your colors into a completely different presentation would still "work," you haven't
-  made specific enough choices.
-- Dominance over equality: one color should dominate (60-70% visual weight), with 1-2 supporting
-  tones and one sharp accent. Never give all colors equal weight.
-- Dark/light contrast: the title and conclusion slides use a dark background; content slides use
-  a light background ("sandwich" structure).
-- Commit to ONE visual motif and carry it across every slide.
-- NEVER default to cream/beige backgrounds (no F5F5DC, FAF0E6, FAEBD7, FFF8E1).
-- NEVER use accent lines under titles.
-- Use white (FFFFFF) or a palette color for backgrounds — not warm neutrals.
+IMPORTANT: Hexaware has exactly TWO approved presentation palettes. You MUST choose one:
 
-Return ONLY valid JSON. No markdown, no explanation."""
+1. Hexaware Corporate  — deep navy (#0A2240) primary, Navy Blue (#000080) accent.
+   Use for: formal enterprise decks, board presentations, client proposals, strategy reviews.
+
+2. Hexaware Professional — near-black (#0D0D0D) primary, Hexaware orange (#FF6B35) accent.
+   Use for: analyst briefings, technical deep-dives, innovation showcases, internal workshops.
+
+Do NOT invent new colors. Do NOT use any other palette. Return ONLY valid JSON."""
 
     DESIGN_USER_TEMPLATE = """Topic: {topic}
 Industry: {industry}
-Industry palette guidance: {palette_hint}
+User Selected Theme: {theme}
 
-Available palettes to choose from (or create your own variation):
+Choose the Hexaware palette that best fits this presentation.
+IMPORTANT: Respect the user's theme preference ({theme}) unless there is a strong design reason to override it.
+
+Available palettes:
 {palettes}
 
-Available visual motifs:
-{motifs}
-
-Available font pairings:
-{font_pairs}
-
-Choose the design system that best fits this specific topic. Return JSON:
+Return JSON:
 {{
-  "palette_name": "string (name of chosen palette or your custom name)",
-  "primary_color": "6-char hex (no #) — dominant color",
-  "secondary_color": "6-char hex (no #) — supporting color",
-  "accent_color": "6-char hex (no #) — sharp accent for callouts",
-  "text_color": "6-char hex (no #) — body text on light background",
-  "text_light_color": "6-char hex (no #) — muted text, axis labels",
-  "background_color": "6-char hex (no #) — light slide background (use FFFFFF or near-white)",
-  "background_dark_color": "6-char hex (no #) — dark slide background (title + conclusion)",
-  "chart_colors": ["hex1", "hex2", "hex3", "hex4", "hex5"],
-  "font_header": "font name from the available pairs",
-  "font_body": "font name from the available pairs",
-  "motif": "motif name from the available list",
-  "design_rationale": "1-2 sentences explaining why these choices fit this topic"
+  "palette_name": "Hexaware Corporate" or "Hexaware Professional",
+  "primary_color": "0A2240" or "0D0D0D",
+  "secondary_color": "000080" or "000080",
+  "accent_color": "000080" or "FF6B35",
+  "text_color": "1A1A2E" or "1A1A1A",
+  "text_light_color": "5A6A7A" or "5A5A6A",
+  "background_color": "FFFFFF",
+  "background_dark_color": "060F1E" or "000000",
+  "chart_colors": ["000080","FF6B35","22C55E","E63946","F5A623"] or ["FF6B35","000080","22C55E","E63946","F5A623"],
+  "font_header": "Calibri" or "Arial",
+  "font_body": "Calibri" or "Arial",
+  "motif": "left-bar" or "corner-accent",
+  "design_rationale": "1 sentence explaining why this palette fits the topic"
 }}"""
 
     def __init__(self) -> None:
@@ -282,7 +244,7 @@ Choose the design system that best fits this specific topic. Return JSON:
         )
 
         try:
-            spec = await self._generate_via_llm(topic, industry, execution_id)
+            spec = await self._generate_via_llm(topic, industry, theme, execution_id)
             logger.info(
                 "design_agent_completed",
                 palette=spec.palette_name,
@@ -299,21 +261,15 @@ Choose the design system that best fits this specific topic. Return JSON:
             return self._fallback_spec(theme)
 
     async def _generate_via_llm(
-        self, topic: str, industry: str, execution_id: str
+        self, topic: str, industry: str, theme: str, execution_id: str
     ) -> DesignSpec:
         from langchain_core.messages import HumanMessage, SystemMessage
-
-        palette_hint = INDUSTRY_PALETTE_HINTS.get(
-            industry.lower().replace(" ", "_"), INDUSTRY_PALETTE_HINTS["general"]
-        )
 
         user_prompt = self.DESIGN_USER_TEMPLATE.format(
             topic=topic,
             industry=industry,
-            palette_hint=palette_hint,
+            theme=theme,
             palettes=AVAILABLE_PALETTES,
-            motifs=AVAILABLE_MOTIFS,
-            font_pairs=AVAILABLE_FONT_PAIRS,
         )
 
         factory = self._get_llm_client()
@@ -337,49 +293,26 @@ Choose the design system that best fits this specific topic. Return JSON:
         return self._parse_design_response(raw)
 
     def _parse_design_response(self, raw: str) -> DesignSpec:
-        """Parse LLM JSON response into a DesignSpec."""
-        # Strip markdown fences
+        """Parse LLM JSON response and snap to the nearest Hexaware palette."""
         cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`").strip()
-
-        # Extract JSON object
         match = re.search(r"\{.*\}", cleaned, re.DOTALL)
         if not match:
             raise ValueError("No JSON object found in design response")
 
         data = json.loads(match.group())
 
-        # Validate and sanitize hex colors
-        def clean_hex(val: str, fallback: str) -> str:
-            if not val:
-                return fallback
-            val = str(val).strip().lstrip("#")
-            if len(val) == 6 and all(c in "0123456789ABCDEFabcdef" for c in val):
-                return val.upper()
-            return fallback
-
-        chart_colors = data.get("chart_colors", [])
-        if not isinstance(chart_colors, list) or len(chart_colors) < 5:
-            chart_colors = ["0077C8", "FFB81C", "00A651", "ED1C24", "8DC63F"]
-
-        return DesignSpec(
-            palette_name=str(data.get("palette_name", "Custom")),
-            primary_color=clean_hex(data.get("primary_color"), "002F6C"),
-            secondary_color=clean_hex(data.get("secondary_color"), "0077C8"),
-            accent_color=clean_hex(data.get("accent_color"), "FFB81C"),
-            text_color=clean_hex(data.get("text_color"), "1A1A1A"),
-            text_light_color=clean_hex(data.get("text_light_color"), "4A4A4A"),
-            background_color=clean_hex(data.get("background_color"), "FFFFFF"),
-            background_dark_color=clean_hex(data.get("background_dark_color"), "002F6C"),
-            chart_colors=[clean_hex(c, "0077C8") for c in chart_colors[:5]],
-            font_header=str(data.get("font_header", "Georgia")),
-            font_body=str(data.get("font_body", "Calibri")),
-            motif=str(data.get("motif", "left-bar")),
-        )
+        # Snap palette_name to one of the two valid options
+        palette_name = str(data.get("palette_name", "")).lower()
+        if "professional" in palette_name:
+            return FALLBACK_PALETTES["hexaware_professional"]
+        # Default to Corporate for any other value
+        return FALLBACK_PALETTES["hexaware_corporate"]
 
     def _fallback_spec(self, theme: str) -> DesignSpec:
-        """Return a built-in fallback palette."""
-        key = theme.replace("-", "_").lower()
-        return FALLBACK_PALETTES.get(key, FALLBACK_PALETTES["corporate"])
+        """Return the appropriate Hexaware fallback palette."""
+        if "professional" in theme.lower():
+            return FALLBACK_PALETTES["hexaware_professional"]
+        return FALLBACK_PALETTES["hexaware_corporate"]
 
 
 # Global singleton

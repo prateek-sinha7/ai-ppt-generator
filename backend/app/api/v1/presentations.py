@@ -109,7 +109,7 @@ def _add_rate_limit_headers(response: Response, info: Dict[str, int]) -> None:
 
 class CreatePresentationRequest(BaseModel):
     topic: str = Field(..., min_length=1, max_length=5000, description="Presentation topic or pasted content")
-    theme: Optional[str] = Field(None, description="Optional theme preference: corporate, executive, professional, dark-modern")
+    theme: Optional[str] = Field(None, description="Optional theme: hexaware_corporate or hexaware_professional")
 
     @field_validator("topic")
     @classmethod
@@ -123,10 +123,11 @@ class CreatePresentationRequest(BaseModel):
     def theme_must_be_valid(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        valid = {"corporate", "executive", "professional", "dark-modern", "dark_modern"}
-        if v.strip().lower() not in valid:
-            raise ValueError(f"theme must be one of: corporate, executive, professional, dark-modern")
-        return v.strip().lower()
+        valid = {"hexaware_corporate", "hexaware_professional"}
+        normalised = v.strip().lower()
+        if normalised not in valid:
+            raise ValueError("theme must be one of: hexaware_corporate, hexaware_professional")
+        return normalised
 
 
 class CreatePresentationResponse(BaseModel):

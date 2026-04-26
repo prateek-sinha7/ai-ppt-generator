@@ -74,8 +74,8 @@ describe('VALID_TYPOGRAPHY_TOKENS', () => {
 })
 
 describe('VALID_THEME_NAMES', () => {
-  it('contains all four themes', () => {
-    ;['executive', 'professional', 'dark-modern', 'corporate'].forEach(t =>
+  it('contains all two Hexaware themes', () => {
+    ;['hexaware_corporate', 'hexaware_professional'].forEach(t =>
       expect(VALID_THEME_NAMES.has(t as any)).toBe(true)
     )
   })
@@ -88,7 +88,7 @@ describe('VALID_THEME_NAMES', () => {
 describe('themes', () => {
   const requiredKeys = ['primary', 'secondary', 'accent', 'bg', 'surface', 'text', 'muted', 'border', 'highlight']
 
-  ;(['executive', 'professional', 'dark-modern', 'corporate'] as const).forEach(theme => {
+  ;(['hexaware_corporate', 'hexaware_professional'] as const).forEach(theme => {
     it(`${theme} has all required color keys`, () => {
       requiredKeys.forEach(key =>
         expect(themes[theme]).toHaveProperty(key)

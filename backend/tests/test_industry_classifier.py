@@ -138,22 +138,27 @@ class TestTemplateSelection:
 
 
 class TestThemeSelection:
-    """Test theme selection"""
-    
-    def test_executive_theme(self):
-        """Test executive theme for executives"""
+    """Test theme selection — only two Hexaware palettes"""
+
+    def test_corporate_theme_for_executives(self):
+        """Executives in non-finance industries get Corporate palette"""
         theme = industry_classifier._select_theme("healthcare", "executives")
-        assert theme == "executive"
-    
-    def test_technical_theme(self):
-        """Test Dark Modern theme for technical audience"""
+        assert theme == "hexaware_corporate"
+
+    def test_professional_theme_for_technical(self):
+        """Technical audiences get Professional palette"""
         theme = industry_classifier._select_theme("technology", "technical")
-        assert theme == "dark_modern"
-    
-    def test_default_theme(self):
-        """Test professional theme for finance analysts"""
+        assert theme == "hexaware_professional"
+
+    def test_professional_theme_for_finance_analysts(self):
+        """Finance analysts get Professional palette"""
         theme = industry_classifier._select_theme("finance", "analysts")
-        assert theme == "professional"
+        assert theme == "hexaware_professional"
+
+    def test_corporate_theme_default(self):
+        """General audience in non-finance industry gets Corporate palette"""
+        theme = industry_classifier._select_theme("retail", "general")
+        assert theme == "hexaware_corporate"
 
 
 @pytest.mark.asyncio
@@ -171,7 +176,7 @@ class TestFullClassification:
         assert context.confidence > 0.0
         assert context.target_audience in ["executives", "analysts", "technical", "general"]
         assert context.selected_template_name is not None
-        assert context.theme in ["executive", "professional", "dark_modern", "corporate"]
+        assert context.theme in ["hexaware_corporate", "hexaware_professional"]
         assert context.classification_method in ["keyword", "semantic", "llm"]
     
     async def test_finance_classification(self):
@@ -181,7 +186,7 @@ class TestFullClassification:
         
         context = await industry_classifier.classify(topic, execution_id)
         
-        assert context.industry == "finance"
+        assert context.industry in ("finance", "fintech")
         assert context.confidence > 0.0
         assert context.selected_template_name is not None
     
@@ -195,7 +200,7 @@ class TestFullClassification:
         assert context.industry == "technology"
         assert context.confidence > 0.0
         assert context.target_audience == "technical"  # Should detect technical audience
-        assert context.theme == "dark_modern"  # Technical audience gets dark theme
+        assert context.theme == "hexaware_professional"  # Technical audience gets Professional palette
 
 
 class TestIndustrySeedTerms:

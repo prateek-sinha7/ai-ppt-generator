@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional
 from celery import Task
 from celery.exceptions import Ignore
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 
 from app.db.models import Presentation, PresentationStatus
 from app.db.session import async_session_maker
@@ -109,7 +110,7 @@ async def _get_presentation(presentation_id: str) -> Optional[Presentation]:
         result = await db.execute(
             select(Presentation).where(
                 Presentation.presentation_id == presentation_id
-            )
+            ).options(selectinload(Presentation.user))
         )
         return result.scalars().first()
 
@@ -488,11 +489,21 @@ def export_pptx_task(
             )
 
         slides_data = presentation.slides or []
-        theme = presentation.selected_theme or "dark_modern"
+        theme = presentation.selected_theme or "hexaware_corporate"
         design_spec = presentation.design_spec or {}
 
+        # Build presentation metadata for title slide branding
+        user = presentation.user
+        prepared_by = (user.full_name or user.email) if user else "Hexaware"
+        created_date = presentation.created_at.strftime("%B %d, %Y") if presentation.created_at else datetime.now(timezone.utc).strftime("%B %d, %Y")
+        presentation_metadata = {
+            "prepared_by": prepared_by,
+            "date": created_date,
+            "classification": "Confidential - Internal Use Only",
+        }
+
         # Build PPTX via Node.js pptx-service (Claude-quality rendering)
-        pptx_bytes = _build_pptx(slides_data, theme, design_spec)
+        pptx_bytes = _build_pptx(slides_data, theme, design_spec, presentation_metadata)
 
         # Upload to S3/MinIO and get signed URL
         object_key = f"exports/{presentation_id}/{job_id}.pptx"
@@ -515,7 +526,7 @@ def export_pptx_task(
         raise self.retry(exc=exc) from exc
 
 
-def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, Any]] = None) -> bytes:
+def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, Any]] = None, presentation_metadata: Optional[Dict[str, Any]] = None) -> bytes:
     """
     Build a PPTX file by calling the pptx-service Node.js microservice.
 
@@ -566,6 +577,7 @@ def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, An
                 "slides": slides_list,
                 "design_spec": design_spec or {},
                 "theme": theme,
+                "metadata": presentation_metadata or {},
             },
             timeout=60.0,
         )

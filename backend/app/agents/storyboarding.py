@@ -228,26 +228,22 @@ class StoryboardingAgent:
         """
         Allocate slides to consulting storytelling sections.
         
-        Default allocation (if no template):
-        - Title: 1 slide
-        - Agenda: 1 slide
-        - Problem: 15% of remaining
-        - Analysis: 30% of remaining
-        - Evidence: 25% of remaining
-        - Recommendations: 20% of remaining
-        - Conclusion: 10% of remaining
+        UPDATED: Limits to exactly 3 chart slides with strategic placement:
+        - 1 chart in Analysis section (market/competitive data)
+        - 1 chart in Evidence section (supporting data)  
+        - 1 chart in Problem section (if space allows)
         
         Args:
             total_slides: Total number of slides to allocate
             template_structure: Optional template structure to follow
             
         Returns:
-            List of SectionPlan objects
+            List of SectionPlan objects with exactly 3 chart slides
         """
         if template_structure:
             return self._allocate_from_template(template_structure)
         
-        # Default allocation
+        # Default allocation with exactly 3 charts
         sections = []
         
         # Fixed sections
@@ -272,32 +268,68 @@ class StoryboardingAgent:
         recommendations_count = max(1, int(remaining * 0.20))
         conclusion_count = max(1, remaining - problem_count - analysis_count - evidence_count - recommendations_count)
         
-        # Problem section (content + optional chart)
+        # CRITICAL: Ensure we always have exactly 3 charts by guaranteeing Problem section gets 2 slides
+        # This ensures: Problem (1 chart) + Analysis (1 chart) + Evidence (1 chart) = 3 charts total
+        if problem_count == 1:
+            # Take 1 slide from the largest section and give to problem to enable 3rd chart
+            if conclusion_count > 1:
+                problem_count = 2
+                conclusion_count -= 1
+            elif recommendations_count > 1:
+                problem_count = 2
+                recommendations_count -= 1
+            elif analysis_count > 2:
+                problem_count = 2
+                analysis_count -= 1
+            elif evidence_count > 2:
+                problem_count = 2
+                evidence_count -= 1
+        
+        # Problem section (content + optional chart if we have space)
         problem_types = [SlideType.CONTENT]
         if problem_count > 1:
-            problem_types.append(SlideType.CHART)
+            problem_types.append(SlideType.CHART)  # Chart 1: Problem visualization
+        # Fill remaining slots with content
+        while len(problem_types) < problem_count:
+            problem_types.append(SlideType.CONTENT)
         sections.append(SectionPlan(
             name="Problem",
             slide_count=problem_count,
             slide_types=problem_types
         ))
         
-        # Analysis section (mix of content, charts, tables, metrics)
-        analysis_types = self._generate_diverse_types(
-            analysis_count,
-            preferred=[SlideType.CONTENT, SlideType.CHART, SlideType.TABLE, SlideType.METRIC]
-        )
+        # Analysis section (content + 1 chart + table/metric)
+        analysis_types = [SlideType.CONTENT]
+        if analysis_count >= 2:
+            analysis_types.append(SlideType.CHART)  # Chart 2: Analysis data
+        if analysis_count >= 3:
+            # Fill remaining with content, table, or metric (no more charts)
+            for i in range(analysis_count - 2):
+                if i % 2 == 0:
+                    analysis_types.append(SlideType.TABLE)
+                else:
+                    analysis_types.append(SlideType.CONTENT)
         sections.append(SectionPlan(
             name="Analysis",
             slide_count=analysis_count,
             slide_types=analysis_types
         ))
         
-        # Evidence section (charts, comparisons, metrics)
-        evidence_types = self._generate_diverse_types(
-            evidence_count,
-            preferred=[SlideType.CHART, SlideType.COMPARISON, SlideType.TABLE, SlideType.METRIC]
-        )
+        # Evidence section (1 chart + comparison/table/metric)
+        evidence_types = []
+        if evidence_count >= 1:
+            evidence_types.append(SlideType.CHART)  # Chart 3: Evidence data
+        if evidence_count >= 2:
+            evidence_types.append(SlideType.COMPARISON)
+        if evidence_count >= 3:
+            # Fill remaining with table, metric, or content (no more charts)
+            for i in range(evidence_count - 2):
+                if i % 3 == 0:
+                    evidence_types.append(SlideType.TABLE)
+                elif i % 3 == 1:
+                    evidence_types.append(SlideType.METRIC)
+                else:
+                    evidence_types.append(SlideType.CONTENT)
         sections.append(SectionPlan(
             name="Evidence",
             slide_count=evidence_count,
@@ -314,7 +346,7 @@ class StoryboardingAgent:
             slide_types=recommendations_types
         ))
         
-        # Conclusion section (content)
+        # Conclusion section (content only)
         sections.append(SectionPlan(
             name="Conclusion",
             slide_count=conclusion_count,
@@ -398,9 +430,10 @@ class StoryboardingAgent:
 
     def enforce_visual_diversity(self, sections: list[SectionPlan]) -> list[SectionPlan]:
         """
-        Enforce visual diversity across all slides.
+        Enforce visual diversity across all slides while protecting strategic chart placement.
         
-        Ensures no more than 2 consecutive slides of the same type.
+        Ensures no more than 2 consecutive slides of the same type, but protects
+        the 3 strategic chart slides from being changed.
         
         Args:
             sections: List of section plans
@@ -413,7 +446,16 @@ class StoryboardingAgent:
         for section in sections:
             all_types.extend(section.slide_types)
         
-        # Check for violations
+        # Identify strategic chart positions (first 3 charts) - these are protected
+        strategic_chart_positions = []
+        chart_count = 0
+        for i, slide_type in enumerate(all_types):
+            if slide_type == SlideType.CHART:
+                chart_count += 1
+                if chart_count <= 3:  # Protect first 3 charts
+                    strategic_chart_positions.append(i)
+        
+        # Check for violations and fix them
         consecutive_count = 1
         last_type = all_types[0] if all_types else None
         
@@ -421,12 +463,20 @@ class StoryboardingAgent:
             if all_types[i] == last_type:
                 consecutive_count += 1
                 if consecutive_count > 2:
-                    # Fix violation: change this slide type
-                    available_types = [t for t in SlideType if t != last_type and t != SlideType.TITLE]
-                    if available_types:
-                        all_types[i] = available_types[0]
-                        consecutive_count = 1
-                        last_type = all_types[i]
+                    # Fix violation: change this slide type, but protect strategic charts
+                    if i not in strategic_chart_positions:
+                        # Available types exclude title and the last type
+                        available_types = [t for t in SlideType if t != last_type and t != SlideType.TITLE]
+                        
+                        # Don't add more charts beyond the strategic 3
+                        if len(strategic_chart_positions) >= 3 and SlideType.CHART in available_types:
+                            available_types.remove(SlideType.CHART)
+                        
+                        if available_types:
+                            all_types[i] = available_types[0]  # Use first available type
+                            consecutive_count = 1
+                            last_type = all_types[i]
+                    # If this is a strategic chart position, we can't change it, so keep the violation
             else:
                 consecutive_count = 1
                 last_type = all_types[i]

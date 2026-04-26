@@ -52,7 +52,7 @@ class BatchProcessingService(LLMEnhancementHelper):
     and improve throughput.
     """
     
-    BATCH_SIZE = 4  # Optimal batch size (3-5 slides)
+    BATCH_SIZE = 2  # Reduced from 4 to 2 to prevent token truncation issues
     
     async def batch_select_icons(
         self,

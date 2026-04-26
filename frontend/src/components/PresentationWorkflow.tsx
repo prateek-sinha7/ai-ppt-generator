@@ -50,7 +50,7 @@ export default function PresentationWorkflow() {
   const [state, setState] = useState<WorkflowState>('input')
   const [presentationId, setPresentationId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [_theme, setTheme] = useState<Theme>('corporate')
+  const [_theme, setTheme] = useState<Theme>('hexaware_corporate')
   const [detectedContext, setDetectedContext] = useState<any>(null)
   const [errorType, setErrorType] = useState<ErrorType>('unknown')
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -130,7 +130,7 @@ export default function PresentationWorkflow() {
         apiClient
           .get(`/presentations/${presentationId}`)
           .then((response) => {
-            setTheme(response.data.theme || 'corporate')
+            setTheme(response.data.theme || 'hexaware_corporate')
             setDesignSpec(response.data.design_spec || null)
             setDetectedContext({
               industry: response.data.detected_industry,

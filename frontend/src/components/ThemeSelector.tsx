@@ -14,24 +14,14 @@ interface ThemeOption {
 
 const THEME_OPTIONS: ThemeOption[] = [
   {
-    key: 'corporate',
-    label: 'Corporate',
-    description: 'Navy blue and white — clean enterprise look',
+    key: 'hexaware_corporate',
+    label: 'Hexaware Corporate',
+    description: 'Deep navy & electric blue — formal enterprise, board presentations',
   },
   {
-    key: 'executive',
-    label: 'Executive',
-    description: 'Navy with gold accent — boardroom ready',
-  },
-  {
-    key: 'professional',
-    label: 'Professional',
-    description: 'Green and teal — modern professional services',
-  },
-  {
-    key: 'dark-modern',
-    label: 'Dark Modern',
-    description: 'Dark background — tech-forward and bold',
+    key: 'hexaware_professional',
+    label: 'Hexaware Professional',
+    description: 'Near-black & orange — analyst briefings, innovation showcases',
   },
 ]
 
@@ -138,7 +128,7 @@ export default function ThemeSelector({ selectedTheme, onSelect }: ThemeSelector
       </button>
 
       {isExpanded && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {THEME_OPTIONS.map((opt) => {
             const isSelected = selectedTheme === opt.key
             return (

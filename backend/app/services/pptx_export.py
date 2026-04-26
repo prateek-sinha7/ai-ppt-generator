@@ -42,115 +42,67 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 class ThemeColors:
-    """Color schemes for each presentation theme."""
+    """Hexaware-branded color schemes. Only two palettes are supported."""
 
-    EXECUTIVE = {
-        "primary": RGBColor(0, 47, 108),        # Navy blue
-        "secondary": RGBColor(0, 119, 200),     # Light blue
-        "accent": RGBColor(255, 184, 28),       # Gold
-        "accent2": RGBColor(0, 166, 81),        # Green
-        "text": RGBColor(51, 51, 51),           # Dark gray
-        "text_light": RGBColor(102, 102, 102),  # Medium gray
-        "background": RGBColor(255, 255, 255),  # White
-        "surface": RGBColor(245, 247, 250),     # Light blue-gray surface
-        "divider": RGBColor(220, 228, 240),     # Subtle divider
-        "kpi_bg": RGBColor(0, 47, 108),         # KPI box background
-        "kpi_text": RGBColor(255, 255, 255),    # KPI box text
-        "header_bar": RGBColor(0, 47, 108),     # Slide header accent bar
+    # ── Hexaware Corporate ────────────────────────────────────────────────────
+    # Deep navy primary, classic blue accent, white content slides.
+    HEXAWARE_CORPORATE = {
+        "primary":     RGBColor(10, 34, 64),        # #0A2240 deep navy
+        "secondary":   RGBColor(0, 0, 128),         # #000080 Navy Blue
+        "accent":      RGBColor(0, 0, 128),         # #000080 Navy Blue
+        "accent2":     RGBColor(255, 107, 53),       # #FF6B35 Hexaware orange
+        "text":        RGBColor(26, 26, 46),         # #1A1A2E near-black
+        "text_light":  RGBColor(90, 106, 122),       # #5A6A7A slate
+        "background":  RGBColor(255, 255, 255),      # #FFFFFF white
+        "surface":     RGBColor(244, 246, 251),      # #F4F6FB light blue-grey
+        "divider":     RGBColor(200, 215, 235),      # subtle divider
+        "kpi_bg":      RGBColor(255, 255, 255),      # #FFFFFF white background for KPI cards
+        "kpi_text":    RGBColor(0, 0, 128),        # #000080 Navy Blue text
+        "header_bar":  RGBColor(10, 34, 64),         # #0A2240
         "chart_colors": [
-            RGBColor(0, 119, 200),
-            RGBColor(255, 184, 28),
-            RGBColor(0, 166, 81),
-            RGBColor(237, 28, 36),
-            RGBColor(141, 198, 63),
-            RGBColor(102, 45, 145),
-            RGBColor(0, 180, 204),
+            RGBColor(0, 0, 128),     # Navy Blue
+            RGBColor(255, 107, 53),  # Hexaware orange
+            RGBColor(34, 197, 94),   # green
+            RGBColor(230, 57, 70),   # red
+            RGBColor(245, 166, 35),  # gold
+            RGBColor(143, 163, 184), # slate
+            RGBColor(74, 127, 232),  # light blue
         ],
     }
 
-    PROFESSIONAL = {
-        "primary": RGBColor(0, 0, 0),           # Black
-        "secondary": RGBColor(134, 188, 37),    # Lime green
-        "accent": RGBColor(0, 180, 204),        # Teal
-        "accent2": RGBColor(255, 140, 0),       # Orange
-        "text": RGBColor(51, 51, 51),           # Dark gray
-        "text_light": RGBColor(102, 102, 102),  # Medium gray
-        "background": RGBColor(255, 255, 255),  # White
-        "surface": RGBColor(248, 250, 245),     # Light green-tinted surface
-        "divider": RGBColor(210, 230, 180),     # Subtle green divider
-        "kpi_bg": RGBColor(0, 0, 0),            # KPI box background
-        "kpi_text": RGBColor(134, 188, 37),     # KPI box text (lime)
-        "header_bar": RGBColor(134, 188, 37),   # Slide header accent bar
+    # ── Hexaware Professional ─────────────────────────────────────────────────
+    # Near-black primary, Hexaware orange accent, crisp white background.
+    HEXAWARE_PROFESSIONAL = {
+        "primary":     RGBColor(13, 13, 13),         # #0D0D0D near-black
+        "secondary":   RGBColor(0, 0, 128),          # #000080 Navy Blue
+        "accent":      RGBColor(255, 107, 53),       # #FF6B35 Hexaware orange
+        "accent2":     RGBColor(34, 197, 94),        # green
+        "text":        RGBColor(26, 26, 26),         # #1A1A1A
+        "text_light":  RGBColor(90, 90, 106),        # #5A5A6A
+        "background":  RGBColor(255, 255, 255),      # #FFFFFF
+        "surface":     RGBColor(247, 247, 247),      # #F7F7F7
+        "divider":     RGBColor(220, 220, 220),
+        "kpi_bg":      RGBColor(255, 255, 255),      # #FFFFFF white background for KPI cards
+        "kpi_text":    RGBColor(0, 0, 128),        # #000080 Navy Blue text
+        "header_bar":  RGBColor(255, 107, 53),       # #FF6B35 orange bar
         "chart_colors": [
-            RGBColor(134, 188, 37),
-            RGBColor(0, 180, 204),
-            RGBColor(255, 140, 0),
-            RGBColor(102, 45, 145),
-            RGBColor(0, 150, 57),
-            RGBColor(0, 0, 0),
-            RGBColor(237, 28, 36),
-        ],
-    }
-
-    DARK_MODERN = {
-        "primary": RGBColor(30, 30, 46),        # Deep navy-black
-        "secondary": RGBColor(99, 102, 241),    # Indigo
-        "accent": RGBColor(236, 72, 153),       # Pink
-        "accent2": RGBColor(34, 197, 94),       # Emerald
-        "text": RGBColor(226, 232, 240),        # Slate-100
-        "text_light": RGBColor(148, 163, 184),  # Slate-400
-        "background": RGBColor(15, 23, 42),     # Slate-900
-        "surface": RGBColor(30, 41, 59),        # Slate-800
-        "divider": RGBColor(51, 65, 85),        # Slate-700
-        "kpi_bg": RGBColor(99, 102, 241),       # KPI box background (indigo)
-        "kpi_text": RGBColor(255, 255, 255),    # KPI box text
-        "header_bar": RGBColor(99, 102, 241),   # Slide header accent bar
-        "chart_colors": [
-            RGBColor(99, 102, 241),
-            RGBColor(236, 72, 153),
-            RGBColor(34, 197, 94),
-            RGBColor(251, 191, 36),
-            RGBColor(56, 189, 248),
-            RGBColor(249, 115, 22),
-            RGBColor(167, 139, 250),
-        ],
-    }
-
-    CORPORATE = {
-        "primary": RGBColor(0, 40, 85),         # Deep navy blue
-        "secondary": RGBColor(0, 82, 136),      # Medium navy
-        "accent": RGBColor(0, 120, 172),         # Steel blue (single accent)
-        "accent2": RGBColor(70, 130, 180),       # Muted steel blue
-        "text": RGBColor(33, 33, 33),            # Near-black
-        "text_light": RGBColor(100, 100, 100),   # Medium gray
-        "background": RGBColor(255, 255, 255),   # White
-        "surface": RGBColor(245, 247, 250),      # Very light blue-gray
-        "divider": RGBColor(210, 218, 226),      # Light gray divider
-        "kpi_bg": RGBColor(0, 40, 85),           # Navy KPI box
-        "kpi_text": RGBColor(255, 255, 255),     # White KPI text
-        "header_bar": RGBColor(0, 40, 85),       # Navy header accent bar
-        "chart_colors": [
-            RGBColor(0, 40, 85),                 # Deep navy
-            RGBColor(0, 82, 136),                # Medium navy
-            RGBColor(0, 120, 172),               # Steel blue
-            RGBColor(70, 130, 180),              # Muted steel
-            RGBColor(140, 170, 200),             # Light steel
-            RGBColor(180, 200, 220),             # Pale blue-gray
-            RGBColor(100, 100, 100),             # Neutral gray
+            RGBColor(255, 107, 53),  # Hexaware orange
+            RGBColor(0, 0, 128),     # Navy Blue
+            RGBColor(34, 197, 94),   # green
+            RGBColor(230, 57, 70),   # red
+            RGBColor(245, 166, 35),  # gold
+            RGBColor(154, 154, 170), # slate
+            RGBColor(74, 127, 232),  # light blue
         ],
     }
 
     @classmethod
     def get_theme(cls, theme_name: str) -> Dict[str, Any]:
-        """Get theme colors by name."""
-        theme_map = {
-            "executive": cls.EXECUTIVE,
-            "professional": cls.PROFESSIONAL,
-            "dark_modern": cls.DARK_MODERN,
-            "dark-modern": cls.DARK_MODERN,
-            "corporate": cls.CORPORATE,
-        }
-        return theme_map.get(theme_name.lower(), cls.CORPORATE)
+        """Get Hexaware theme colors by name."""
+        name = theme_name.lower().replace("-", "_")
+        if name == "hexaware_professional":
+            return cls.HEXAWARE_PROFESSIONAL
+        return cls.HEXAWARE_CORPORATE
 
 
 # ---------------------------------------------------------------------------
@@ -1133,8 +1085,10 @@ class PPTXBuilder:
                 box_h,
             )
             box.fill.solid()
-            box.fill.fore_color.rgb = self.theme_colors["primary"]
-            box.line.fill.background()
+            # White background with Navy Blue border (minimal Navy Blue usage)
+            box.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            box.line.color.rgb = self.theme_colors["secondary"]
+            box.line.width = Pt(2)
 
             tf = box.text_frame
             tf.word_wrap = True
@@ -1144,7 +1098,8 @@ class PPTXBuilder:
             p.text = prefix + text
             p.font.size = Pt(13)
             p.font.bold = True
-            p.font.color.rgb = RGBColor(255, 255, 255)
+            # Navy Blue text on white background
+            p.font.color.rgb = self.theme_colors["secondary"]
         except Exception as e:
             logger.error("insight_box_failed", error=str(e))
 

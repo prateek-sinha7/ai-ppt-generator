@@ -17,7 +17,7 @@ export type ChartType = 'bar' | 'line' | 'pie'
 
 export type TransitionType = 'fade' | 'slide' | 'none'
 
-export type Theme = 'executive' | 'professional' | 'dark-modern' | 'corporate'
+export type Theme = 'hexaware_corporate' | 'hexaware_professional'
 
 export interface ChartDataPoint {
   label: string

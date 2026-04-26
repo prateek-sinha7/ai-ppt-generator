@@ -55,7 +55,7 @@ def _make_presentation(
     p.tenant_id = tenant_id or uuid.uuid4()
     p.status = status
     p.topic = "AI in Healthcare"
-    p.selected_theme = "corporate"
+    p.selected_theme = "hexaware_corporate"
     p.slides = [
         {
             "slide_id": str(uuid.uuid4()),
@@ -456,7 +456,7 @@ class TestGetExportPreview:
             {"title": "Introduction", "content": {"bullets": ["Point A"]}},
             {"title": "Analysis", "content": {"bullets": ["Finding 1", "Finding 2"]}},
         ]
-        html = _build_preview_html(slides, "corporate")
+        html = _build_preview_html(slides, "hexaware_corporate")
 
         assert "Introduction" in html
         assert "Analysis" in html
@@ -466,9 +466,9 @@ class TestGetExportPreview:
         """_build_preview_html uses theme-specific background color."""
         from app.api.v1.export_templates_admin import _build_preview_html
 
-        html_executive = _build_preview_html([], "executive")
-        html_professional = _build_preview_html([], "professional")
-        html_dark = _build_preview_html([], "dark_modern")
+        html_executive = _build_preview_html([], "hexaware_corporate")
+        html_professional = _build_preview_html([], "hexaware_professional")
+        html_dark = _build_preview_html([], "hexaware_corporate")
 
         assert "#003366" in html_executive
         assert "#86BC25" in html_professional

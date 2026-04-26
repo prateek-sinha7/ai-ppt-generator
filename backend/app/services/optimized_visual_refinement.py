@@ -121,7 +121,7 @@ class OptimizedVisualRefinementService:
         
         Processes slides in batches of 4 to reduce LLM call overhead.
         """
-        BATCH_SIZE = 4
+        BATCH_SIZE = 2
         refined_slides = []
         
         for i in range(0, len(slides), BATCH_SIZE):
@@ -151,6 +151,31 @@ class OptimizedVisualRefinementService:
                 batch,
                 execution_id,
             )
+            
+            # Validate batch response completeness
+            expected_slide_ids = {slide.get("slide_id", f"slide-{i+j+1}") for j, slide in enumerate(batch)}
+            
+            # Check if all expected slides have enhancements
+            missing_icons = expected_slide_ids - set(icon_map.keys())
+            missing_highlights = expected_slide_ids - set(highlight_map.keys())
+            missing_notes = expected_slide_ids - set(notes_map.keys())
+            
+            if missing_icons or missing_highlights or missing_notes:
+                logger.warning(
+                    "batch_response_incomplete_fallback_to_individual",
+                    execution_id=execution_id,
+                    batch_start=i,
+                    expected_slides=len(batch),
+                    missing_icons=len(missing_icons),
+                    missing_highlights=len(missing_highlights),
+                    missing_notes=len(missing_notes),
+                    missing_slide_ids=list(missing_icons | missing_highlights | missing_notes)
+                )
+                
+                # Fallback to individual processing for this batch
+                individual_refined = await self._individual_refine_slides(batch, execution_id)
+                refined_slides.extend(individual_refined)
+                continue
             
             # Apply enhancements to slides
             for slide in batch:

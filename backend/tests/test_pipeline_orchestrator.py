@@ -128,7 +128,7 @@ class TestPipelineSequence:
                                         "sub_sector": None, "target_audience": "general",
                                         "selected_template_id": None,
                                         "selected_template_name": "Tech",
-                                        "theme": "dark_modern",
+                                        "theme": "hexaware_professional",
                                         "compliance_context": [],
                                         "classification_method": "keyword"}
             elif agent_name == AgentName.STORYBOARDING:
@@ -279,7 +279,7 @@ class TestCheckpointRecovery:
                                     "sub_sector": None, "target_audience": "general",
                                     "selected_template_id": None,
                                     "selected_template_name": "Retail",
-                                    "theme": "professional",
+                                    "theme": "hexaware_corporate",
                                     "compliance_context": [],
                                     "classification_method": "semantic"}
         pre_ctx.optimized_prompt = {"prompt_id": "x", "version": "1.0.0",

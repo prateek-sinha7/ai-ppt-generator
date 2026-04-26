@@ -157,9 +157,21 @@ class ConflictResolutionEngine:
             
             # Enforce: truncate or pad slides
             if actual_count > expected_count:
+                logger.warning(
+                    "slides_truncated_by_conflict_resolution",
+                    original_count=actual_count,
+                    truncated_to=expected_count,
+                    removed_slides=[s.get("slide_number", i) for i, s in enumerate(actual_slides[expected_count:], expected_count + 1)]
+                )
                 output["slides"] = actual_slides[:expected_count]
             elif actual_count < expected_count:
                 # Pad with placeholder slides
+                logger.info(
+                    "slides_padded_by_conflict_resolution",
+                    original_count=actual_count,
+                    padded_to=expected_count,
+                    added_slides=list(range(actual_count + 1, expected_count + 1))
+                )
                 for i in range(expected_count - actual_count):
                     output["slides"].append({
                         "slide_id": f"placeholder_{i}",

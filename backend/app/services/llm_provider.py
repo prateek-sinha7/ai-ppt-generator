@@ -312,6 +312,7 @@ class ProviderFactory:
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,
                 callbacks=callbacks,
+                default_request_timeout=120.0,  # 2 minute timeout for HTTP requests
             )
         
         elif provider == ProviderType.OPENAI:
@@ -321,6 +322,7 @@ class ProviderFactory:
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,
                 callbacks=callbacks,
+                request_timeout=120.0,  # 2 minute timeout for HTTP requests
             )
         
         elif provider == ProviderType.GROQ:
@@ -330,6 +332,7 @@ class ProviderFactory:
                 temperature=1.0,  # Match Groq example
                 max_tokens=16000,  # Large enough for full presentation JSON
                 callbacks=callbacks,
+                timeout=120.0,  # 2 minute timeout for HTTP requests
             )
         
         elif provider == ProviderType.LOCAL:

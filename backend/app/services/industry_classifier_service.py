@@ -246,7 +246,7 @@ class IndustryClassifierService:
                 target_audience=presentation.inferred_audience or "general",
                 selected_template_id=str(presentation.selected_template_id) if presentation.selected_template_id else None,
                 selected_template_name="",  # Would need to join with Template to get name
-                theme=presentation.selected_theme or "corporate",
+                theme=presentation.selected_theme or "hexaware_corporate",
                 compliance_context=presentation.compliance_context or [],
                 classification_method="",  # Not stored in DB
             )

@@ -1,5 +1,5 @@
 import React from 'react'
-import { SlideData, DesignSpec } from '../../types'
+import { SlideData, DesignSpec, Theme } from '../../types'
 import { resolveColors, SlideColors } from '../../utils/themeUtils'
 import { TitleSlide } from './TitleSlide'
 import { ContentSlide } from './ContentSlide'
@@ -10,7 +10,7 @@ import { MetricSlide } from './MetricSlide'
 
 interface SlideRendererProps {
   slide: SlideData
-  theme: 'executive' | 'professional' | 'dark-modern' | 'corporate'
+  theme: Theme
   designSpec?: DesignSpec | null
   /** Whether this is the first or last slide (dark background sandwich) */
   isDark?: boolean
