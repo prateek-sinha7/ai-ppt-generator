@@ -55,7 +55,7 @@ def _make_presentation(
     p.tenant_id = tenant_id or uuid.uuid4()
     p.status = status
     p.topic = "AI in Healthcare"
-    p.selected_theme = "corporate"
+    p.selected_theme = "ocean-depths"
     p.slides = [
         {
             "slide_id": str(uuid.uuid4()),
@@ -456,7 +456,7 @@ class TestGetExportPreview:
             {"title": "Introduction", "content": {"bullets": ["Point A"]}},
             {"title": "Analysis", "content": {"bullets": ["Finding 1", "Finding 2"]}},
         ]
-        html = _build_preview_html(slides, "corporate")
+        html = _build_preview_html(slides, "ocean-depths")
 
         assert "Introduction" in html
         assert "Analysis" in html
@@ -466,12 +466,12 @@ class TestGetExportPreview:
         """_build_preview_html uses theme-specific background color."""
         from app.api.v1.export_templates_admin import _build_preview_html
 
-        html_executive = _build_preview_html([], "executive")
-        html_professional = _build_preview_html([], "professional")
-        html_dark = _build_preview_html([], "dark_modern")
+        html_executive = _build_preview_html([], "ocean-depths")
+        html_Modern Minimalist = _build_preview_html([], "modern-minimalist")
+        html_dark = _build_preview_html([], "tech-innovation")
 
         assert "#003366" in html_executive
-        assert "#86BC25" in html_professional
+        assert "#86BC25" in html_Modern Minimalist
         assert "#1A1A2E" in html_dark
 
     def test_build_fallback_pdf_returns_valid_pdf_bytes(self):

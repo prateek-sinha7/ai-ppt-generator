@@ -27,6 +27,7 @@ from jsonschema import Draft7Validator, validate
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.generation_mode import GenerationMode
 from app.services.schema_registry import (
     CURRENT_SCHEMA_VERSION,
     SchemaVersionError,
@@ -85,7 +86,9 @@ VALID_TYPOGRAPHY_TOKENS: frozenset = frozenset({
 
 # Valid theme names — must stay in sync with tokens.ts themes object
 VALID_THEME_NAMES: frozenset = frozenset({
-    "executive", "professional", "dark-modern", "corporate",
+    "ocean-depths", "sunset-boulevard", "forest-canopy", "modern-minimalist",
+    "golden-hour", "arctic-frost", "desert-rose", "tech-innovation",
+    "botanical-garden", "midnight-galaxy",
 })
 
 # layout_instructions keys that reference spacing tokens
@@ -106,6 +109,46 @@ THEME_INSTRUCTION_KEYS: frozenset = frozenset({
     "theme",
 })
 
+# Layout variant validation
+CONTENT_LAYOUT_VARIANTS: frozenset = frozenset({
+    "numbered-cards", "icon-grid", "two-column-text",
+    "stat-callouts", "timeline", "quote-highlight",
+})
+CHART_LAYOUT_VARIANTS: frozenset = frozenset({
+    "chart-right", "chart-full", "chart-top", "chart-with-kpi",
+})
+TABLE_LAYOUT_VARIANTS: frozenset = frozenset({
+    "table-full", "table-with-insights", "table-highlight",
+})
+COMPARISON_LAYOUT_VARIANTS: frozenset = frozenset({
+    "two-column", "pros-cons", "before-after", "icon-rows",
+})
+
+DEFAULT_LAYOUT_VARIANTS: dict = {
+    "content": "numbered-cards",
+    "chart": "chart-right",
+    "table": "table-full",
+    "comparison": "two-column",
+}
+
+LAYOUT_VARIANTS_BY_TYPE: dict = {
+    "content": CONTENT_LAYOUT_VARIANTS,
+    "chart": CHART_LAYOUT_VARIANTS,
+    "table": TABLE_LAYOUT_VARIANTS,
+    "comparison": COMPARISON_LAYOUT_VARIANTS,
+}
+
+
+# Code-mode constants
+PPTXGENJS_API_PATTERN = re.compile(
+    r'slide\.(addText|addShape|addChart|addImage|addTable|background)'
+)
+MAX_RENDER_CODE_LENGTH = 50_000
+CODE_SLIDE_REQUIRED_FIELDS = ("slide_id", "slide_number", "type", "title", "speaker_notes", "render_code")
+
+# Artisan-mode constants
+ARTISAN_API_PATTERN = re.compile(r'pres\.addSlide\(\)')
+MAX_ARTISAN_CODE_LENGTH = 500_000
 
 # Content constraints
 MAX_TITLE_WORDS = 8
@@ -196,6 +239,9 @@ SLIDE_JSON_SCHEMA = {
                             "two-column",
                             "highlight-metric"
                         ]
+                    },
+                    "layout_variant": {
+                        "type": "string"
                     },
                     "layout_constraints": {
                         "type": "object",
@@ -585,6 +631,28 @@ class ValidationAgent:
 
             slide["content"] = content
 
+        # Enforce layout variant diversity — no consecutive same-type slides with same variant
+        for i in range(1, len(corrected.get("slides", []))):
+            prev_slide = corrected["slides"][i - 1]
+            curr_slide = corrected["slides"][i]
+            prev_type = prev_slide.get("type", "content")
+            curr_type = curr_slide.get("type", "content")
+            if prev_type == curr_type:
+                prev_variant = prev_slide.get("content", {}).get("layout_variant") or prev_slide.get("layout_variant")
+                curr_variant = curr_slide.get("content", {}).get("layout_variant") or curr_slide.get("layout_variant")
+                if prev_variant and curr_variant and prev_variant == curr_variant:
+                    # Rotate to next available variant
+                    valid_variants = LAYOUT_VARIANTS_BY_TYPE.get(curr_type, set())
+                    if valid_variants:
+                        alternatives = [v for v in valid_variants if v != curr_variant]
+                        if alternatives:
+                            new_variant = alternatives[0]
+                            if "layout_variant" in curr_slide.get("content", {}):
+                                curr_slide["content"]["layout_variant"] = new_variant
+                            else:
+                                curr_slide["layout_variant"] = new_variant
+                            corrections += 1
+
         return corrected, corrections
     
     def validate_schema(self, data: Dict[str, Any]) -> Tuple[bool, List[ValidationError]]:
@@ -905,54 +973,58 @@ class ValidationAgent:
                 if not content.get("chart_type"):
                     content["chart_type"] = "bar"
                     corrections += 1
+                # If chart slide has no chart_data at all, convert to content slide
+                if not content.get("chart_data"):
+                    slide["type"] = "content"
+                    slide["visual_hint"] = "bullet-left"
+                    corrections += 1
+                    logger.info("converted_empty_chart_to_content", slide_number=i+1)
                 slide["content"] = content
 
             elif slide_type == "table":
-                # Ensure table_data has headers and rows
+                # If table slide has no table_data, convert to content slide
                 table_data = content.get("table_data")
                 if not table_data or not isinstance(table_data, dict) or not table_data.get("headers"):
-                    bullets = content.get("bullets", [])
-                    if bullets:
-                        fallback = {
-                            "headers": ["Item", "Details"],
-                            "rows": [
-                                [
-                                    (b.get("text", str(b)) if isinstance(b, dict) else str(b))[:30],
-                                    "—"
-                                ]
-                                for b in bullets[:5]
-                            ]
-                        }
+                    if content.get("bullets"):
+                        # Has bullets but no table — just make it a content slide
+                        slide["type"] = "content"
+                        slide["visual_hint"] = "bullet-left"
+                        corrections += 1
+                        logger.info("converted_empty_table_to_content", slide_number=i+1)
                     else:
+                        # No bullets and no table — generate minimal fallback
                         fallback = {
                             "headers": ["Metric", "Value", "Trend"],
                             "rows": [
                                 ["Revenue Growth", "12.5%", "↑"],
                                 ["Market Share", "23.4%", "↑"],
                                 ["Cost Reduction", "8.2%", "↓"],
-                                ["Customer Satisfaction", "87%", "↑"],
                             ]
                         }
-                    content["table_data"] = fallback
-                    corrections += 1
-                    logger.info("auto_corrected_table_data", slide_number=i+1)
+                        content["table_data"] = fallback
+                        corrections += 1
+                        logger.info("auto_corrected_table_data", slide_number=i+1)
                 slide["content"] = content
 
             elif slide_type == "comparison":
-                # Ensure comparison_data has left_column and right_column
+                # If comparison slide has no comparison_data, convert to content slide
                 comparison_data = content.get("comparison_data")
                 if not comparison_data or not isinstance(comparison_data, dict) or \
                    not comparison_data.get("left_column") or not comparison_data.get("right_column"):
-                    bullets = content.get("bullets", [])
-                    mid = len(bullets) // 2
-                    left_bullets = bullets[:mid] if mid > 0 else ["Current approach", "Existing process", "Status quo"]
-                    right_bullets = bullets[mid:] if mid > 0 else ["Improved approach", "New process", "Future state"]
-                    content["comparison_data"] = {
-                        "left_column": {"heading": "Current State", "bullets": left_bullets},
-                        "right_column": {"heading": "Future State", "bullets": right_bullets}
-                    }
-                    corrections += 1
-                    logger.info("auto_corrected_comparison_data", slide_number=i+1)
+                    if content.get("bullets"):
+                        # Has bullets but no comparison — just make it a content slide
+                        slide["type"] = "content"
+                        slide["visual_hint"] = "bullet-left"
+                        corrections += 1
+                        logger.info("converted_empty_comparison_to_content", slide_number=i+1)
+                    else:
+                        # No bullets and no comparison — generate minimal fallback
+                        content["comparison_data"] = {
+                            "left_column": {"heading": "Current State", "bullets": ["Current approach", "Existing process"]},
+                            "right_column": {"heading": "Future State", "bullets": ["Improved approach", "New process"]}
+                        }
+                        corrections += 1
+                        logger.info("auto_corrected_comparison_data", slide_number=i+1)
                 slide["content"] = content
             
             # Ensure layout_constraints
@@ -1331,6 +1403,14 @@ class ValidationAgent:
                         if not isinstance(col, dict):
                             comparison_data[col_key] = {"heading": col_key.replace("_", " ").title(), "bullets": [str(col)]}
                             corrections += 1
+                        elif col.get("items") and isinstance(col["items"], list):
+                            # Rich item format: [{ icon, title, description }] — preserve as-is
+                            # Also generate bullets fallback for backward compatibility
+                            if not col.get("bullets"):
+                                col["bullets"] = [
+                                    item.get("title", str(item)) if isinstance(item, dict) else str(item)
+                                    for item in col["items"]
+                                ]
                         elif not col.get("bullets"):
                             col["bullets"] = ["Key point 1", "Key point 2", "Key point 3"]
                             corrections += 1
@@ -1893,6 +1973,565 @@ class ValidationAgent:
 
         return errors
 
+    # ------------------------------------------------------------------
+    # Code-mode and Hybrid-mode validation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def strip_code_fences(raw: str) -> str:
+        """
+        Strip markdown code fences from raw LLM response text.
+
+        Removes ```json, ```javascript, ``` wrappers that LLMs commonly
+        add around their output.
+
+        Args:
+            raw: Raw LLM response string
+
+        Returns:
+            Cleaned string with code fences removed
+        """
+        stripped = raw.strip()
+        # Remove opening fence (```json, ```javascript, ```js, ```)
+        stripped = re.sub(r'^```(?:json|javascript|js)?\s*\n?', '', stripped)
+        # Remove closing fence
+        stripped = re.sub(r'\n?```\s*$', '', stripped)
+        return stripped.strip()
+
+    def validate_code_slide(self, slide: Dict[str, Any]) -> List[ValidationError]:
+        """
+        Validate a single code-mode slide.
+
+        Checks:
+        - Required fields: slide_id, slide_number, type, title, speaker_notes, render_code
+        - render_code is a non-empty string
+        - render_code length <= 50,000 characters
+        - render_code contains at least one pptxgenjs API call pattern
+
+        Args:
+            slide: A single slide dictionary
+
+        Returns:
+            List of validation errors for this slide
+        """
+        errors: List[ValidationError] = []
+        slide_id = slide.get("slide_id", "unknown")
+
+        # Check required fields
+        for field in CODE_SLIDE_REQUIRED_FIELDS:
+            if field not in slide:
+                errors.append(
+                    ValidationError(
+                        field=f"slide[{slide_id}].{field}",
+                        message=f"Missing required field '{field}' for code-mode slide",
+                        severity="error",
+                        auto_corrected=False,
+                    )
+                )
+
+        render_code = slide.get("render_code")
+
+        # Check render_code is a non-empty string
+        if render_code is not None:
+            if not isinstance(render_code, str) or len(render_code.strip()) == 0:
+                errors.append(
+                    ValidationError(
+                        field=f"slide[{slide_id}].render_code",
+                        message="render_code must be a non-empty string",
+                        severity="error",
+                        auto_corrected=False,
+                    )
+                )
+            else:
+                # Check length limit
+                if len(render_code) > MAX_RENDER_CODE_LENGTH:
+                    errors.append(
+                        ValidationError(
+                            field=f"slide[{slide_id}].render_code",
+                            message=f"render_code exceeds {MAX_RENDER_CODE_LENGTH} character limit "
+                                    f"(actual: {len(render_code)})",
+                            severity="error",
+                            auto_corrected=False,
+                        )
+                    )
+
+                # Check for at least one pptxgenjs API call
+                if not PPTXGENJS_API_PATTERN.search(render_code):
+                    errors.append(
+                        ValidationError(
+                            field=f"slide[{slide_id}].render_code",
+                            message="render_code must contain at least one pptxgenjs API call "
+                                    "(slide.addText, slide.addShape, slide.addChart, "
+                                    "slide.addImage, slide.addTable, or slide.background)",
+                            severity="error",
+                            auto_corrected=False,
+                        )
+                    )
+
+        return errors
+
+    @staticmethod
+    def _repair_json(raw: str, max_retries: int = 2) -> Optional[Any]:
+        """
+        Attempt to parse *raw* as JSON, applying incremental repairs on failure.
+
+        Repair strategies (applied cumulatively across retries):
+        1. Strip trailing commas before ``]`` or ``}``.
+        2. Close unbalanced brackets / braces.
+
+        Args:
+            raw: Raw string that should contain JSON.
+            max_retries: Maximum repair attempts (default 2).
+
+        Returns:
+            Parsed Python object on success, or ``None`` after all retries fail.
+        """
+        text = raw.strip()
+
+        # Attempt 0 — parse as-is
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        for attempt in range(1, max_retries + 1):
+            # Repair step 1: strip trailing commas  (,] or ,})
+            text = re.sub(r',\s*([}\]])', r'\1', text)
+
+            # Repair step 2: close unbalanced brackets / braces
+            # We must close in the reverse order they were opened to produce
+            # valid JSON.  Walk the string and record unclosed openers.
+            stack: list[str] = []
+            in_string = False
+            escape_next = False
+            for ch in text:
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == '\\':
+                    escape_next = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch in ('{', '['):
+                    stack.append(ch)
+                elif ch == '}' and stack and stack[-1] == '{':
+                    stack.pop()
+                elif ch == ']' and stack and stack[-1] == '[':
+                    stack.pop()
+
+            # Close in reverse order
+            closers = {'[': ']', '{': '}'}
+            suffix = ''.join(closers[opener] for opener in reversed(stack))
+            text = text.rstrip() + suffix
+
+            try:
+                parsed = json.loads(text)
+                logger.info(
+                    "json_repair_succeeded",
+                    attempt=attempt,
+                    closers_appended=suffix,
+                )
+                return parsed
+            except json.JSONDecodeError:
+                logger.debug("json_repair_attempt_failed", attempt=attempt)
+
+        return None
+
+    def auto_correct_render_code(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """
+        Auto-correct common issues in code-mode LLM output.
+
+        Corrections applied per ``render_code`` field:
+        1. Strip markdown code fences (```javascript … ```)
+        2. Fix double-escaped newlines (\\\\n → \\n)
+        3. Fix double-escaped quotes (\\\\" → \\")
+
+        Args:
+            data: Parsed slide data dictionary (with a "slides" array)
+
+        Returns:
+            Tuple of (corrected_data, count_of_corrections)
+        """
+        corrected = deepcopy(data)
+        corrections = 0
+
+        for slide in corrected.get("slides", []):
+            render_code = slide.get("render_code")
+            if not isinstance(render_code, str):
+                continue
+
+            original = render_code
+
+            # Strip markdown code fences wrapping the render_code value
+            render_code = self.strip_code_fences(render_code)
+
+            # Fix double-escaped newlines: \\n → \n
+            render_code = render_code.replace("\\\\n", "\\n")
+            # Fix double-escaped quotes: \\" → \"
+            render_code = render_code.replace('\\\\"', '\\"')
+
+            if render_code != original:
+                slide["render_code"] = render_code
+                corrections += 1
+                logger.info(
+                    "auto_corrected_render_code_escaping",
+                    slide_id=slide.get("slide_id", "unknown"),
+                )
+
+        return corrected, corrections
+
+    def validate_code_mode(
+        self,
+        data: Dict[str, Any],
+        execution_id: str,
+    ) -> ValidationResult:
+        """
+        Full code-mode validation pipeline.
+
+        Steps:
+        1. Apply auto_correct_render_code (strip fences, fix escaping)
+        2. Validate each slide with validate_code_slide
+        3. Validate round-trip property
+
+        Args:
+            data: Parsed LLM output with slides array
+            execution_id: Execution ID for tracing
+
+        Returns:
+            ValidationResult
+        """
+        logger.info("code_mode_validation_started", execution_id=execution_id)
+
+        corrected_data = deepcopy(data)
+        all_errors: List[ValidationError] = []
+        total_corrections = 0
+
+        # Step 1: Auto-correct render_code (strip fences + fix escaping)
+        corrected_data, corrections = self.auto_correct_render_code(corrected_data)
+        total_corrections += corrections
+
+        # Step 2: Validate each slide
+        for slide in corrected_data.get("slides", []):
+            slide_errors = self.validate_code_slide(slide)
+            all_errors.extend(slide_errors)
+
+        # Step 3: Round-trip validation
+        round_trip_valid = self.validate_round_trip(corrected_data)
+        if not round_trip_valid:
+            all_errors.append(
+                ValidationError(
+                    field="root",
+                    message="Round-trip validation failed: parse(format(parse(x))) != parse(x)",
+                    severity="warning",
+                    auto_corrected=False,
+                )
+            )
+
+        has_errors = any(e.severity == "error" for e in all_errors)
+        is_valid = not has_errors and round_trip_valid
+
+        result = ValidationResult(
+            is_valid=is_valid,
+            errors=all_errors,
+            corrected_data=corrected_data,
+            corrections_applied=total_corrections,
+        )
+
+        logger.info(
+            "code_mode_validation_completed",
+            execution_id=execution_id,
+            is_valid=result.is_valid,
+            errors_count=len(result.errors),
+            corrections_applied=result.corrections_applied,
+        )
+
+        return result
+
+    def validate_hybrid_mode(
+        self,
+        data: Dict[str, Any],
+        execution_id: str,
+    ) -> ValidationResult:
+        """
+        Hybrid-mode validation pipeline.
+
+        For slides WITH render_code: validate using code-mode rules.
+        For slides WITHOUT render_code: validate using existing JSON schema rules.
+
+        Args:
+            data: Parsed LLM output with slides array
+            execution_id: Execution ID for tracing
+
+        Returns:
+            ValidationResult
+        """
+        logger.info("hybrid_mode_validation_started", execution_id=execution_id)
+
+        corrected_data = deepcopy(data)
+        all_errors: List[ValidationError] = []
+        total_corrections = 0
+
+        # Auto-correct render_code escaping on slides that have it
+        corrected_data, corrections = self.auto_correct_render_code(corrected_data)
+        total_corrections += corrections
+
+        code_slides: List[Dict[str, Any]] = []
+        json_slides: List[Dict[str, Any]] = []
+
+        for slide in corrected_data.get("slides", []):
+            if slide.get("render_code"):
+                code_slides.append(slide)
+            else:
+                json_slides.append(slide)
+
+        # Validate code slides with code-mode rules
+        for slide in code_slides:
+            slide_errors = self.validate_code_slide(slide)
+            all_errors.extend(slide_errors)
+
+        # Validate JSON slides with existing schema rules
+        if json_slides:
+            # Build a temporary data structure for JSON-only slides
+            json_data = deepcopy(corrected_data)
+            json_data["slides"] = json_slides
+            json_data["total_slides"] = len(json_slides)
+
+            # Run existing JSON validation pipeline on JSON slides
+            json_data = ensure_schema_version(json_data)
+            json_data, norm_corrections = self.normalise_slide_fields(json_data)
+            total_corrections += norm_corrections
+
+            json_data, type_corrections = self.infer_slide_types(json_data)
+            total_corrections += type_corrections
+
+            is_valid_json, schema_errors = self.validate_schema(json_data)
+            all_errors.extend(schema_errors)
+
+            visual_hint_errors = self.validate_visual_hints(json_data)
+            all_errors.extend(visual_hint_errors)
+
+            if not is_valid_json:
+                json_data, corrections = self.auto_correct_missing_fields(json_data)
+                total_corrections += corrections
+                json_data, corrections = self.auto_correct_wrong_types(json_data)
+                total_corrections += corrections
+
+            # Merge corrected JSON slides back
+            json_slide_map = {s.get("slide_id"): s for s in json_data.get("slides", [])}
+            for i, slide in enumerate(corrected_data.get("slides", [])):
+                if not slide.get("render_code") and slide.get("slide_id") in json_slide_map:
+                    corrected_data["slides"][i] = json_slide_map[slide["slide_id"]]
+
+        # Round-trip validation
+        round_trip_valid = self.validate_round_trip(corrected_data)
+        if not round_trip_valid:
+            all_errors.append(
+                ValidationError(
+                    field="root",
+                    message="Round-trip validation failed: parse(format(parse(x))) != parse(x)",
+                    severity="warning",
+                    auto_corrected=False,
+                )
+            )
+
+        has_errors = any(e.severity == "error" for e in all_errors)
+        is_valid = not has_errors and round_trip_valid
+
+        result = ValidationResult(
+            is_valid=is_valid,
+            errors=all_errors,
+            corrected_data=corrected_data,
+            corrections_applied=total_corrections,
+        )
+
+        logger.info(
+            "hybrid_mode_validation_completed",
+            execution_id=execution_id,
+            is_valid=result.is_valid,
+            errors_count=len(result.errors),
+            corrections_applied=result.corrections_applied,
+            code_slides=len(code_slides),
+            json_slides=len(json_slides),
+        )
+
+        return result
+
+    def validate_artisan_mode(
+        self,
+        data: Dict[str, Any],
+        execution_id: str,
+    ) -> ValidationResult:
+        """
+        Artisan-mode validation pipeline.
+
+        Handles both pre-parsed dicts (from ``parse_raw_llm_output``) and
+        dicts that may still contain raw LLM formatting artefacts.
+
+        Steps:
+        1. Strip markdown code fences from the ``artisan_code`` value
+        2. Handle unwrapped script (no JSON wrapper) by auto-wrapping in
+           ``{"artisan_code": "<script>"}``
+        3. JSON repair (trailing commas, missing brackets) with up to 2
+           retries using ``_repair_json()``
+        4. Verify ``artisan_code`` field is a non-empty string
+        5. Verify ``artisan_code`` contains ``pres.addSlide()``
+        6. Enforce 500,000 character limit
+        7. Round-trip validation
+
+        Args:
+            data: Parsed LLM output — expected to have an ``artisan_code``
+                  key, but the method will attempt recovery if it doesn't.
+            execution_id: Execution ID for tracing
+
+        Returns:
+            ValidationResult
+        """
+        logger.info("artisan_mode_validation_started", execution_id=execution_id)
+
+        corrected_data = deepcopy(data)
+        all_errors: List[ValidationError] = []
+        total_corrections = 0
+
+        # ------------------------------------------------------------------
+        # Step 1: Strip markdown code fences from artisan_code value
+        # ------------------------------------------------------------------
+        artisan_code = corrected_data.get("artisan_code")
+        if isinstance(artisan_code, str):
+            stripped = self.strip_code_fences(artisan_code)
+            if stripped != artisan_code:
+                corrected_data["artisan_code"] = stripped
+                artisan_code = stripped
+                total_corrections += 1
+                logger.info(
+                    "artisan_code_fences_stripped",
+                    execution_id=execution_id,
+                )
+
+        # ------------------------------------------------------------------
+        # Step 2: Handle unwrapped script — if artisan_code is missing but
+        # the data dict itself looks like it might contain a raw script
+        # stashed under a different key, or if the caller accidentally
+        # passed a dict without the wrapper, try to recover.
+        # ------------------------------------------------------------------
+        if artisan_code is None:
+            # Check if any string value in the dict contains pres.addSlide()
+            for key, value in corrected_data.items():
+                if isinstance(value, str) and ARTISAN_API_PATTERN.search(value):
+                    artisan_code = self.strip_code_fences(value)
+                    corrected_data = {"artisan_code": artisan_code}
+                    total_corrections += 1
+                    logger.info(
+                        "artisan_code_recovered_from_key",
+                        execution_id=execution_id,
+                        source_key=key,
+                    )
+                    break
+
+        # ------------------------------------------------------------------
+        # Step 3: If artisan_code looks like a JSON string (e.g. the LLM
+        # returned a double-encoded value), attempt JSON repair to extract
+        # the actual script.
+        # ------------------------------------------------------------------
+        if isinstance(artisan_code, str) and artisan_code.lstrip().startswith('{'):
+            repaired = self._repair_json(artisan_code, max_retries=2)
+            if isinstance(repaired, dict) and "artisan_code" in repaired:
+                inner = repaired["artisan_code"]
+                if isinstance(inner, str) and len(inner.strip()) > 0:
+                    artisan_code = self.strip_code_fences(inner)
+                    corrected_data["artisan_code"] = artisan_code
+                    total_corrections += 1
+                    logger.info(
+                        "artisan_code_unwrapped_from_double_encoding",
+                        execution_id=execution_id,
+                    )
+
+        # ------------------------------------------------------------------
+        # Step 4: Verify artisan_code field is a non-empty string
+        # ------------------------------------------------------------------
+        if artisan_code is None:
+            all_errors.append(
+                ValidationError(
+                    field="artisan_code",
+                    message="Missing required field 'artisan_code'",
+                    severity="error",
+                    auto_corrected=False,
+                )
+            )
+        elif not isinstance(artisan_code, str) or len(artisan_code.strip()) == 0:
+            all_errors.append(
+                ValidationError(
+                    field="artisan_code",
+                    message="artisan_code must be a non-empty string",
+                    severity="error",
+                    auto_corrected=False,
+                )
+            )
+        else:
+            # ----------------------------------------------------------
+            # Step 5: Verify artisan_code contains pres.addSlide()
+            # ----------------------------------------------------------
+            if not ARTISAN_API_PATTERN.search(artisan_code):
+                all_errors.append(
+                    ValidationError(
+                        field="artisan_code",
+                        message="artisan_code must contain at least one pres.addSlide() call",
+                        severity="error",
+                        auto_corrected=False,
+                    )
+                )
+
+            # ----------------------------------------------------------
+            # Step 6: Enforce 500,000 character limit
+            # ----------------------------------------------------------
+            if len(artisan_code) > MAX_ARTISAN_CODE_LENGTH:
+                all_errors.append(
+                    ValidationError(
+                        field="artisan_code",
+                        message=f"artisan_code exceeds {MAX_ARTISAN_CODE_LENGTH} character limit "
+                                f"(actual: {len(artisan_code)})",
+                        severity="error",
+                        auto_corrected=False,
+                    )
+                )
+
+        # ------------------------------------------------------------------
+        # Step 7: Round-trip validation
+        # ------------------------------------------------------------------
+        round_trip_valid = self.validate_round_trip(corrected_data)
+        if not round_trip_valid:
+            all_errors.append(
+                ValidationError(
+                    field="root",
+                    message="Round-trip validation failed: parse(format(parse(x))) != parse(x)",
+                    severity="warning",
+                    auto_corrected=False,
+                )
+            )
+
+        has_errors = any(e.severity == "error" for e in all_errors)
+        is_valid = not has_errors and round_trip_valid
+
+        result = ValidationResult(
+            is_valid=is_valid,
+            errors=all_errors,
+            corrected_data=corrected_data,
+            corrections_applied=total_corrections,
+        )
+
+        logger.info(
+            "artisan_mode_validation_completed",
+            execution_id=execution_id,
+            is_valid=result.is_valid,
+            errors_count=len(result.errors),
+            corrections_applied=result.corrections_applied,
+        )
+
+        return result
+
     def validate_round_trip(self, original: Dict[str, Any]) -> bool:
         """
         Validate round-trip property: parse(format(parse(x))) == parse(x)
@@ -1929,25 +2568,28 @@ class ValidationAgent:
         self,
         data: Dict[str, Any],
         execution_id: str,
-        apply_corrections: bool = True
+        apply_corrections: bool = True,
+        generation_mode: Optional[GenerationMode] = None,
     ) -> ValidationResult:
         """
         Main validation method with auto-correction.
 
         Implements:
-        1. Schema version compatibility check (31.4) — reject incompatible versions
-        2. Schema migration from v0.9.0 → v1.0.0 (31.3)
-        3. schema_version field enforcement (31.1)
-        4. Schema validation
-        5. Visual hint validation
-        6. Auto-correction (up to 2 attempts)
-        7. Content constraint application
-        8. Round-trip validation
+        1. Generation mode routing (artisan/studio/craft/express)
+        2. Schema version compatibility check (31.4) — reject incompatible versions
+        3. Schema migration from v0.9.0 → v1.0.0 (31.3)
+        4. schema_version field enforcement (31.1)
+        5. Schema validation
+        6. Visual hint validation
+        7. Auto-correction (up to 2 attempts)
+        8. Content constraint application
+        9. Round-trip validation
 
         Args:
             data: Slide_JSON data to validate
             execution_id: Execution ID for tracing
             apply_corrections: Whether to apply auto-corrections
+            generation_mode: Generation mode (artisan, studio, craft, express, or None for express)
 
         Returns:
             ValidationResult with validation status and corrections
@@ -1955,6 +2597,15 @@ class ValidationAgent:
         Raises:
             SchemaVersionError: if the document's schema version is incompatible
         """
+        # --- Route by generation mode ---
+        if generation_mode == GenerationMode.ARTISAN:
+            return self.validate_artisan_mode(data, execution_id)
+        if generation_mode == GenerationMode.STUDIO:
+            return self.validate_code_mode(data, execution_id)
+        if generation_mode == GenerationMode.CRAFT:
+            return self.validate_hybrid_mode(data, execution_id)
+
+        # --- JSON mode (default / existing logic) ---
         logger.info("validation_started", execution_id=execution_id)
 
         # --- Step 1: Version compatibility check (31.4) ---
@@ -2090,6 +2741,139 @@ class ValidationAgent:
         )
         
         return result
+
+    def parse_raw_llm_output(
+        self,
+        raw_text: str,
+        generation_mode: Optional[GenerationMode] = None,
+    ) -> Dict[str, Any]:
+        """
+        Parse raw LLM response text into a structured dict, with auto-repair.
+
+        For all modes:
+        1. Strip markdown code fences (```json, ```javascript, ```)
+        2. Attempt JSON parse
+        3. On failure, apply JSON repair (trailing commas, unbalanced brackets)
+           with up to 2 retries
+        4. Normalise bare arrays into ``{"slides": [...]}``
+
+        For artisan mode specifically:
+        5. If the parsed result lacks an ``artisan_code`` key but looks like
+           a raw script (contains ``pres.addSlide()``), auto-wrap it into
+           ``{"artisan_code": "<script>"}``
+
+        This method is intended to be called *before* ``validate()`` when the
+        caller has a raw string rather than an already-parsed dict.
+
+        Args:
+            raw_text: Raw LLM response string
+            generation_mode: Active generation mode (for logging)
+
+        Returns:
+            Parsed dict ready for ``validate()``
+
+        Raises:
+            ValueError: If the text cannot be parsed after all repair attempts
+        """
+        # Step 1: strip code fences
+        cleaned = self.strip_code_fences(raw_text)
+
+        # --- Artisan mode handling ---
+        if generation_mode == GenerationMode.ARTISAN:
+            return self._parse_artisan_output(cleaned)
+
+        # Step 2: try to extract JSON from the cleaned text
+        # The LLM may include preamble text before the JSON array/object
+        json_start = None
+        for i, ch in enumerate(cleaned):
+            if ch in ('[', '{'):
+                json_start = i
+                break
+
+        if json_start is not None:
+            candidate = cleaned[json_start:]
+        else:
+            candidate = cleaned
+
+        # Step 3: parse with repair
+        parsed = self._repair_json(candidate, max_retries=2)
+        if parsed is None:
+            raise ValueError(
+                f"Failed to parse LLM output as JSON after 2 repair attempts. "
+                f"First 200 chars: {cleaned[:200]}"
+            )
+
+        # Step 4: normalise
+        if isinstance(parsed, list):
+            parsed = {
+                "slides": parsed,
+                "total_slides": len(parsed),
+            }
+        elif isinstance(parsed, dict) and "slides" not in parsed:
+            # Search one level deep for a slides array
+            for key, val in parsed.items():
+                if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
+                    parsed = {"slides": val, "total_slides": len(val)}
+                    break
+
+        logger.info(
+            "raw_llm_output_parsed",
+            generation_mode=generation_mode.value if generation_mode else "unknown",
+            slide_count=len(parsed.get("slides", [])) if isinstance(parsed, dict) else 0,
+        )
+
+        return parsed
+
+    def _parse_artisan_output(self, cleaned: str) -> Dict[str, Any]:
+        """
+        Parse artisan-mode LLM output.
+
+        Handles three cases:
+        1. Valid JSON with ``artisan_code`` key → return as-is
+        2. JSON-like text that needs repair → repair then return
+        3. Raw script (no JSON wrapper) containing ``pres.addSlide()``
+           → auto-wrap into ``{"artisan_code": "<script>"}``
+
+        Args:
+            cleaned: Code-fence-stripped LLM response
+
+        Returns:
+            Dict with ``artisan_code`` key
+
+        Raises:
+            ValueError: If the text cannot be parsed or wrapped
+        """
+        # Try to find JSON object start
+        json_start = None
+        for i, ch in enumerate(cleaned):
+            if ch == '{':
+                json_start = i
+                break
+
+        if json_start is not None:
+            candidate = cleaned[json_start:]
+            parsed = self._repair_json(candidate, max_retries=2)
+            if isinstance(parsed, dict) and "artisan_code" in parsed:
+                logger.info(
+                    "artisan_output_parsed_as_json",
+                    code_length=len(parsed["artisan_code"]) if isinstance(parsed.get("artisan_code"), str) else 0,
+                )
+                return parsed
+
+        # If JSON parsing failed or result lacks artisan_code,
+        # check if the cleaned text is a raw script
+        if ARTISAN_API_PATTERN.search(cleaned):
+            logger.info(
+                "artisan_output_auto_wrapped",
+                code_length=len(cleaned),
+            )
+            return {"artisan_code": cleaned}
+
+        raise ValueError(
+            f"Failed to parse artisan LLM output: no valid JSON with 'artisan_code' key "
+            f"and no raw script with pres.addSlide() found. "
+            f"First 200 chars: {cleaned[:200]}"
+        )
 
 
 # Global agent instance

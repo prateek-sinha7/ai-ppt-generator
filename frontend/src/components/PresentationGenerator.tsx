@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { apiClient } from '../services/api'
 import { Theme } from '../styles/tokens'
 import ThemeSelector from './ThemeSelector'
+import GenerationModeSelector, { type GenerationMode } from './GenerationModeSelector'
 
 interface PresentationGeneratorProps {
   onGenerationStart: (presentationId: string, jobId: string) => void
@@ -12,6 +13,7 @@ const MAX_TOPIC_LENGTH = 5000
 export default function PresentationGenerator({ onGenerationStart }: PresentationGeneratorProps) {
   const [topic, setTopic] = useState('')
   const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null)
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('code')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,15 +34,17 @@ export default function PresentationGenerator({ onGenerationStart }: Presentatio
     setError(null)
 
     try {
-      const payload: { topic: string; theme?: string } = { topic: topic.trim() }
+      const payload: { topic: string; theme?: string; generation_mode?: string } = { topic: topic.trim() }
       if (selectedTheme) {
         payload.theme = selectedTheme
       }
+      payload.generation_mode = generationMode
       const response = await apiClient.post('/presentations', payload)
       const { presentation_id, job_id } = response.data
       onGenerationStart(presentation_id, job_id)
       setTopic('')
       setSelectedTheme(null)
+      setGenerationMode('code')
     } catch (err: any) {
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please try again later.')
@@ -62,11 +66,13 @@ export default function PresentationGenerator({ onGenerationStart }: Presentatio
 
   return (
     <div className="w-full max-w-3xl mx-auto p-8">
-      <div className="bg-white rounded-lg shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+      <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 relative overflow-hidden">
+        {/* Atmospheric gradient accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-700 via-slate-500 to-slate-700" />
+        <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
           AI Presentation Generator
         </h1>
-        <p className="text-gray-600 mb-8">
+        <p className="text-slate-500 mb-8 text-sm leading-relaxed">
           Enter a topic or paste your content — the AI will structure it into a professional presentation
         </p>
 
@@ -99,10 +105,12 @@ export default function PresentationGenerator({ onGenerationStart }: Presentatio
 
           <ThemeSelector selectedTheme={selectedTheme} onSelect={setSelectedTheme} />
 
+          <GenerationModeSelector selectedMode={generationMode} onSelect={setGenerationMode} />
+
           <button
             type="submit"
             disabled={isSubmitting || !topic.trim() || isOverLimit}
-            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-gradient-to-r from-slate-800 to-slate-700 text-white py-3.5 px-6 rounded-xl font-semibold hover:from-slate-700 hover:to-slate-600 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
           >
             {isSubmitting ? 'Starting Generation…' : 'Generate Presentation'}
           </button>

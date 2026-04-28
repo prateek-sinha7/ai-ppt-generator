@@ -77,61 +77,145 @@ class DesignSpec:
 # ---------------------------------------------------------------------------
 
 FALLBACK_PALETTES: Dict[str, DesignSpec] = {
-    "executive": DesignSpec(
-        primary_color="002F6C",
-        secondary_color="0077C8",
-        accent_color="FFB81C",
-        text_color="1A1A1A",
-        text_light_color="4A4A4A",
-        background_color="FFFFFF",
-        background_dark_color="002F6C",
-        chart_colors=["0077C8", "FFB81C", "00A651", "ED1C24", "8DC63F"],
+    "ocean_depths": DesignSpec(
+        primary_color="1A2332",
+        secondary_color="2D8B8B",
+        accent_color="A8DADC",
+        text_color="1A2332",
+        text_light_color="6B7280",
+        background_color="F1FAEE",
+        background_dark_color="0D1520",
+        chart_colors=["1A2332", "2D8B8B", "A8DADC", "5BA3A3", "3D6B6B"],
         font_header="Georgia",
         font_body="Calibri",
         motif="left-bar",
-        palette_name="Midnight Executive",
+        palette_name="Ocean Depths",
     ),
-    "professional": DesignSpec(
-        primary_color="000000",
-        secondary_color="86BC25",
-        accent_color="00B4CC",
-        text_color="1A1A1A",
-        text_light_color="4A4A4A",
+    "sunset_boulevard": DesignSpec(
+        primary_color="E76F51",
+        secondary_color="F4A261",
+        accent_color="E9C46A",
+        text_color="264653",
+        text_light_color="6B7280",
         background_color="FFFFFF",
-        background_dark_color="000000",
-        chart_colors=["86BC25", "00B4CC", "FF8C00", "662D91", "009639"],
-        font_header="Arial Black",
-        font_body="Arial",
+        background_dark_color="1A2F3A",
+        chart_colors=["E76F51", "F4A261", "E9C46A", "264653", "2A9D8F"],
+        font_header="Georgia",
+        font_body="Calibri",
         motif="corner-accent",
-        palette_name="Charcoal Minimal",
+        palette_name="Sunset Boulevard",
     ),
-    "dark_modern": DesignSpec(
-        primary_color="1E2761",
-        secondary_color="CADCFC",
-        accent_color="FFFFFF",
-        text_color="DCDCDC",
-        text_light_color="A0A0A0",
-        background_color="121212",
+    "forest_canopy": DesignSpec(
+        primary_color="2D4A2B",
+        secondary_color="7D8471",
+        accent_color="A4AC86",
+        text_color="2D4A2B",
+        text_light_color="6B7280",
+        background_color="FAF9F6",
+        background_dark_color="1A2D1A",
+        chart_colors=["2D4A2B", "7D8471", "A4AC86", "5A7A58", "8B9B78"],
+        font_header="Cambria",
+        font_body="Calibri",
+        motif="left-bar",
+        palette_name="Forest Canopy",
+    ),
+    "modern_minimalist": DesignSpec(
+        primary_color="36454F",
+        secondary_color="708090",
+        accent_color="D3D3D3",
+        text_color="36454F",
+        text_light_color="708090",
+        background_color="FFFFFF",
+        background_dark_color="1A2028",
+        chart_colors=["36454F", "708090", "A0A0A0", "505A64", "8896A0"],
+        font_header="Calibri",
+        font_body="Calibri Light",
+        motif="left-bar",
+        palette_name="Modern Minimalist",
+    ),
+    "golden_hour": DesignSpec(
+        primary_color="F4A900",
+        secondary_color="C1666B",
+        accent_color="D4B896",
+        text_color="4A403A",
+        text_light_color="6B7280",
+        background_color="FFFFFF",
+        background_dark_color="2A2420",
+        chart_colors=["F4A900", "C1666B", "D4B896", "8B6914", "A0524E"],
+        font_header="Georgia",
+        font_body="Calibri",
+        motif="stat-callout",
+        palette_name="Golden Hour",
+    ),
+    "arctic_frost": DesignSpec(
+        primary_color="4A6FA5",
+        secondary_color="C0C0C0",
+        accent_color="D4E4F7",
+        text_color="2C3E50",
+        text_light_color="6B7280",
+        background_color="FAFAFA",
+        background_dark_color="2A3A50",
+        chart_colors=["4A6FA5", "7A9CC6", "A8C4E0", "5580A8", "3D5A80"],
+        font_header="Calibri",
+        font_body="Calibri Light",
+        motif="left-bar",
+        palette_name="Arctic Frost",
+    ),
+    "desert_rose": DesignSpec(
+        primary_color="D4A5A5",
+        secondary_color="B87D6D",
+        accent_color="E8D5C4",
+        text_color="5D2E46",
+        text_light_color="6B7280",
+        background_color="FFFFFF",
+        background_dark_color="3A1A2A",
+        chart_colors=["D4A5A5", "B87D6D", "E8D5C4", "5D2E46", "9B6B6B"],
+        font_header="Georgia",
+        font_body="Calibri",
+        motif="corner-accent",
+        palette_name="Desert Rose",
+    ),
+    "tech_innovation": DesignSpec(
+        primary_color="0066FF",
+        secondary_color="00FFFF",
+        accent_color="00CCCC",
+        text_color="FFFFFF",
+        text_light_color="9CA3AF",
+        background_color="1E1E1E",
         background_dark_color="0A0A0A",
-        chart_colors=["CADCFC", "FFFFFF", "7EC8E3", "A8D8EA", "B8D4E8"],
+        chart_colors=["0066FF", "00FFFF", "00CCCC", "3388FF", "66DDFF"],
         font_header="Calibri",
         font_body="Calibri Light",
         motif="glow-dot",
-        palette_name="Midnight Executive",
+        palette_name="Tech Innovation",
     ),
-    "corporate": DesignSpec(
-        primary_color="002855",
-        secondary_color="005288",
-        accent_color="0078AC",
-        text_color="212121",
-        text_light_color="646464",
-        background_color="FFFFFF",
-        background_dark_color="002855",
-        chart_colors=["002855", "005288", "0078AC", "4682B4", "8CAAC8"],
-        font_header="Calibri",
+    "botanical_garden": DesignSpec(
+        primary_color="4A7C59",
+        secondary_color="F9A620",
+        accent_color="B7472A",
+        text_color="3A3A3A",
+        text_light_color="6B7280",
+        background_color="F5F3ED",
+        background_dark_color="2A3A2A",
+        chart_colors=["4A7C59", "F9A620", "B7472A", "6B9B78", "D4881A"],
+        font_header="Cambria",
         font_body="Calibri",
-        motif="left-bar",
-        palette_name="Corporate Navy",
+        motif="icon-circle",
+        palette_name="Botanical Garden",
+    ),
+    "midnight_galaxy": DesignSpec(
+        primary_color="4A4E8F",
+        secondary_color="A490C2",
+        accent_color="E6E6FA",
+        text_color="E6E6FA",
+        text_light_color="9CA3AF",
+        background_color="2B1E3E",
+        background_dark_color="1A1028",
+        chart_colors=["4A4E8F", "A490C2", "E6E6FA", "6B6FAF", "C4B8D8"],
+        font_header="Calibri",
+        font_body="Calibri Light",
+        motif="glow-dot",
+        palette_name="Midnight Galaxy",
     ),
 }
 
@@ -181,6 +265,11 @@ AVAILABLE_FONT_PAIRS = """
 | Calibri | Calibri Light |
 | Cambria | Calibri |
 | Trebuchet MS | Calibri |
+| Instrument Sans | Calibri |
+| Work Sans | Calibri Light |
+| Lora | Calibri |
+| Outfit | Calibri |
+| Crimson Pro | Calibri |
 """
 
 
@@ -213,9 +302,13 @@ Design principles you MUST follow:
 - Dark/light contrast: the title and conclusion slides use a dark background; content slides use
   a light background ("sandwich" structure).
 - Commit to ONE visual motif and carry it across every slide.
-- NEVER default to cream/beige backgrounds (no F5F5DC, FAF0E6, FAEBD7, FFF8E1).
-- NEVER use accent lines under titles.
-- Use white (FFFFFF) or a palette color for backgrounds — not warm neutrals.
+
+AVOID — these are common design mistakes:
+- No cream or beige backgrounds (no F5F5DC, FAF0E6, FAEBD7, FFF8E1). Use white (FFFFFF) or a palette color.
+- No repeated layouts across slides — vary columns, cards, and callouts.
+- No centered body text — left-align paragraphs and lists; center only titles.
+- No accent lines under titles — these are a hallmark of AI-generated slides.
+- Pick colors specific to the topic, not generic blue — if the topic is healthcare, use teal/sage; if finance, use navy/gold.
 
 Return ONLY valid JSON. No markdown, no explanation."""
 
@@ -266,7 +359,7 @@ Choose the design system that best fits this specific topic. Return JSON:
         self,
         topic: str,
         industry: str,
-        theme: str = "corporate",
+        theme: str = "ocean-depths",
         execution_id: str = "",
     ) -> DesignSpec:
         """
@@ -379,7 +472,7 @@ Choose the design system that best fits this specific topic. Return JSON:
     def _fallback_spec(self, theme: str) -> DesignSpec:
         """Return a built-in fallback palette."""
         key = theme.replace("-", "_").lower()
-        return FALLBACK_PALETTES.get(key, FALLBACK_PALETTES["corporate"])
+        return FALLBACK_PALETTES.get(key, FALLBACK_PALETTES["ocean_depths"])
 
 
 # Global singleton

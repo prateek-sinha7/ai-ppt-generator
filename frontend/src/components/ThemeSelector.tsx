@@ -14,24 +14,54 @@ interface ThemeOption {
 
 const THEME_OPTIONS: ThemeOption[] = [
   {
-    key: 'corporate',
-    label: 'Corporate',
-    description: 'Navy blue and white — clean enterprise look',
+    key: 'ocean-depths',
+    label: 'Ocean Depths',
+    description: 'Deep navy and teal — calm, professional',
   },
   {
-    key: 'executive',
-    label: 'Executive',
-    description: 'Navy with gold accent — boardroom ready',
+    key: 'sunset-boulevard',
+    label: 'Sunset Boulevard',
+    description: 'Warm orange and coral — creative energy',
   },
   {
-    key: 'professional',
-    label: 'Professional',
-    description: 'Green and teal — modern professional services',
+    key: 'forest-canopy',
+    label: 'Forest Canopy',
+    description: 'Earth tones and sage — natural, grounded',
   },
   {
-    key: 'dark-modern',
-    label: 'Dark Modern',
-    description: 'Dark background — tech-forward and bold',
+    key: 'modern-minimalist',
+    label: 'Modern Minimalist',
+    description: 'Charcoal and slate — clean versatility',
+  },
+  {
+    key: 'golden-hour',
+    label: 'Golden Hour',
+    description: 'Mustard and terracotta — warm, inviting',
+  },
+  {
+    key: 'arctic-frost',
+    label: 'Arctic Frost',
+    description: 'Steel blue and silver — crisp, clinical',
+  },
+  {
+    key: 'desert-rose',
+    label: 'Desert Rose',
+    description: 'Dusty rose and burgundy — soft elegance',
+  },
+  {
+    key: 'tech-innovation',
+    label: 'Tech Innovation',
+    description: 'Electric blue on dark — bold, futuristic',
+  },
+  {
+    key: 'botanical-garden',
+    label: 'Botanical Garden',
+    description: 'Fern green and marigold — fresh, organic',
+  },
+  {
+    key: 'midnight-galaxy',
+    label: 'Midnight Galaxy',
+    description: 'Deep purple and lavender — dramatic, cosmic',
   },
 ]
 
@@ -138,32 +168,50 @@ export default function ThemeSelector({ selectedTheme, onSelect }: ThemeSelector
       </button>
 
       {isExpanded && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {THEME_OPTIONS.map((opt) => {
             const isSelected = selectedTheme === opt.key
+            const t = themes[opt.key]
             return (
               <button
                 key={opt.key}
                 type="button"
                 onClick={() => onSelect(isSelected ? null : opt.key)}
-                className={`group rounded-lg border-2 p-2.5 text-left transition-all hover:shadow-md ${
+                className={`group rounded-lg p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-sm'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
+                    ? 'ring-2 shadow-md'
+                    : 'border border-gray-200 bg-white hover:border-transparent hover:shadow-md'
                 }`}
+                style={isSelected ? {
+                  borderColor: t.primary,
+                  ringColor: t.primary,
+                  boxShadow: `0 4px 14px ${t.primary}30`,
+                  outline: `2px solid ${t.primary}`,
+                  outlineOffset: '-2px',
+                  backgroundColor: `${t.bg}`,
+                } : undefined}
               >
                 <MiniSlidePreview themeKey={opt.key} />
                 <div className="mt-2">
                   <p
-                    className={`text-xs font-semibold ${
-                      isSelected ? 'text-blue-700' : 'text-gray-800'
-                    }`}
+                    className="text-xs font-semibold"
+                    style={{ color: isSelected ? t.primary : undefined }}
                   >
                     {opt.label}
                   </p>
                   <p className="text-[10px] leading-tight text-gray-500 mt-0.5">
                     {opt.description}
                   </p>
+                </div>
+                {/* Theme color swatch strip */}
+                <div className="flex gap-0.5 mt-1.5">
+                  {[t.primary, t.secondary, t.accent].map((color, i) => (
+                    <div
+                      key={i}
+                      className="h-1 flex-1 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
                 </div>
               </button>
             )

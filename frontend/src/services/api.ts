@@ -101,3 +101,16 @@ export const approvePresentation = (presentationId: string) =>
 
 export const rejectPresentation = (presentationId: string, reason: string) =>
   apiClient.post(`/presentations/${presentationId}/approval/reject`, { reason })
+
+// --- Multi-format export ---
+export const exportPdf = (presentationId: string) =>
+  apiClient.post(`/presentations/${presentationId}/export/pdf`)
+
+export const exportDocx = (presentationId: string) =>
+  apiClient.post(`/presentations/${presentationId}/export/docx`)
+
+export const exportXlsx = (presentationId: string) =>
+  apiClient.post(`/presentations/${presentationId}/export/xlsx`)
+
+export const getExportStatus = (presentationId: string, jobId: string) =>
+  apiClient.get(`/presentations/${presentationId}/export/status`, { params: { job_id: jobId } })

@@ -29,6 +29,7 @@ import structlog
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.generation_mode import GenerationMode, PROVIDER_DEFAULT_MODES
 from app.db.models import (
     AgentState,
     Presentation,
@@ -56,6 +57,7 @@ class AgentName(str, Enum):
     VALIDATION = "validation"
     VISUAL_REFINEMENT = "visual_refinement"  # NEW - Post-validation visual polish
     QUALITY_SCORING = "quality_scoring"
+    VISUAL_QA = "visual_qa"
 
 
 # Pipeline execution order
@@ -70,6 +72,7 @@ PIPELINE_SEQUENCE: List[AgentName] = [
     AgentName.VALIDATION,
     AgentName.VISUAL_REFINEMENT,  # NEW - Runs after validation
     AgentName.QUALITY_SCORING,
+    AgentName.VISUAL_QA,
 ]
 
 
@@ -88,10 +91,11 @@ AGENT_LATENCY_BUDGETS: Dict[AgentName, float] = {
     AgentName.VALIDATION: 5.0,
     AgentName.VISUAL_REFINEMENT: 90.0,  # Increased for Phase 5 batch processing (3 LLM calls per batch)
     AgentName.QUALITY_SCORING: 10.0,
+    AgentName.VISUAL_QA: 60.0,
 }
 
 # Total pipeline budget
-PIPELINE_TOTAL_BUDGET_SECONDS = 570.0  # Increased for research agent + Phase 5 visual refinement + longer LLM generation time
+PIPELINE_TOTAL_BUDGET_SECONDS = 630.0  # Increased for research agent + Phase 5 visual refinement + longer LLM generation time + visual QA
 
 # Circuit breaker threshold — open when failure rate > 20%
 CIRCUIT_BREAKER_FAILURE_THRESHOLD = 0.20
@@ -186,6 +190,53 @@ def get_circuit_breaker(agent: AgentName) -> CircuitBreaker:
 
 
 # ---------------------------------------------------------------------------
+# Code Failure Tracker — per-provider code generation failure tracking (6.4)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CodeFailureTracker:
+    """Track code generation success/failure per provider over a rolling window.
+
+    When the failure rate exceeds 30% over the last 10 requests for a provider,
+    the tracker recommends downgrading that provider's generation mode.
+    """
+
+    _results: Dict[str, Deque[bool]] = field(default_factory=dict)
+
+    def record(self, provider: str, success: bool) -> None:
+        """Record a code generation result for *provider*."""
+        if provider not in self._results:
+            self._results[provider] = deque(maxlen=10)
+        self._results[provider].append(success)
+
+    def failure_rate(self, provider: str) -> float:
+        window = self._results.get(provider)
+        if not window:
+            return 0.0
+        failures = sum(1 for ok in window if not ok)
+        return failures / len(window)
+
+    def should_downgrade(self, provider: str) -> bool:
+        return self.failure_rate(provider) > 0.30
+
+    def downgraded_mode(self, current_mode: GenerationMode) -> GenerationMode:
+        """Return the next lower mode: artisan → studio → craft → express."""
+        if current_mode == GenerationMode.ARTISAN:
+            return GenerationMode.STUDIO
+        if current_mode == GenerationMode.STUDIO:
+            return GenerationMode.CRAFT
+        return GenerationMode.EXPRESS
+
+
+# Global code failure tracker instance
+_code_failure_tracker = CodeFailureTracker()
+
+
+def get_code_failure_tracker() -> CodeFailureTracker:
+    return _code_failure_tracker
+
+
+# ---------------------------------------------------------------------------
 # Pipeline context — carries state between agents
 # ---------------------------------------------------------------------------
 
@@ -197,6 +248,7 @@ class PipelineContext:
     execution_id: str
     topic: str
     user_selected_theme: Optional[str] = None
+    generation_mode: Optional[GenerationMode] = None
 
     # Populated by each agent
     detected_context: Optional[Dict[str, Any]] = None
@@ -208,6 +260,7 @@ class PipelineContext:
     raw_llm_output: Optional[Dict[str, Any]] = None
     validated_slides: Optional[Dict[str, Any]] = None
     quality_result: Optional[Dict[str, Any]] = None
+    visual_qa_result: Optional[Dict[str, Any]] = None
 
     # Tracking
     completed_agents: List[AgentName] = field(default_factory=list)
@@ -222,6 +275,7 @@ class PipelineContext:
             "execution_id": self.execution_id,
             "topic": self.topic,
             "user_selected_theme": self.user_selected_theme,
+            "generation_mode": self.generation_mode.value if self.generation_mode else None,
             "detected_context": self.detected_context,
             "design_spec": self.design_spec,
             "presentation_plan": self.presentation_plan,
@@ -231,6 +285,7 @@ class PipelineContext:
             "raw_llm_output": self.raw_llm_output,
             "validated_slides": self.validated_slides,
             "quality_result": self.quality_result,
+            "visual_qa_result": self.visual_qa_result,
             "completed_agents": [a.value for a in self.completed_agents],
             "failed_agent": self.failed_agent.value if self.failed_agent else None,
             "error_message": self.error_message,
@@ -245,6 +300,8 @@ class PipelineContext:
             topic=data["topic"],
             user_selected_theme=data.get("user_selected_theme"),
         )
+        gm = data.get("generation_mode")
+        ctx.generation_mode = GenerationMode(gm) if gm else None
         ctx.detected_context = data.get("detected_context")
         ctx.design_spec = data.get("design_spec")
         ctx.presentation_plan = data.get("presentation_plan")
@@ -254,6 +311,7 @@ class PipelineContext:
         ctx.raw_llm_output = data.get("raw_llm_output")
         ctx.validated_slides = data.get("validated_slides")
         ctx.quality_result = data.get("quality_result")
+        ctx.visual_qa_result = data.get("visual_qa_result")
         ctx.completed_agents = [AgentName(a) for a in data.get("completed_agents", [])]
         failed = data.get("failed_agent")
         ctx.failed_agent = AgentName(failed) if failed else None
@@ -482,6 +540,7 @@ class PipelineOrchestrator:
         resume_from_checkpoint: bool = True,
         job_id: Optional[str] = None,
         user_selected_theme: Optional[str] = None,
+        generation_mode: Optional[str] = None,
     ) -> PipelineContext:
         """
         Execute the full pipeline for a presentation.
@@ -515,6 +574,29 @@ class PipelineOrchestrator:
                 user_selected_theme=user_selected_theme,
             )
 
+        # Resolve generation_mode: user override > checkpoint > provider default
+        if generation_mode:
+            try:
+                ctx.generation_mode = GenerationMode(generation_mode)
+            except ValueError:
+                logger.warning("invalid_generation_mode_ignored", mode=generation_mode)
+        if ctx.generation_mode is None:
+            # Derive from primary provider
+            try:
+                from app.db.models import ProviderType as _PT
+                primary = self._provider_factory.primary_provider
+                db_provider = _PT(primary.value)
+                ctx.generation_mode = PROVIDER_DEFAULT_MODES.get(db_provider, GenerationMode.EXPRESS)
+            except Exception:
+                ctx.generation_mode = GenerationMode.EXPRESS
+
+        logger.info(
+            "generation_mode_resolved",
+            presentation_id=presentation_id,
+            generation_mode=ctx.generation_mode.value,
+            user_override=generation_mode,
+        )
+
         # Check final Slide_JSON cache before running the full pipeline (21.1)
         try:
             from app.services.presentation_cache import presentation_cache, compute_provider_config_hash
@@ -525,7 +607,7 @@ class PipelineOrchestrator:
             # we can attempt a cache lookup immediately.
             if ctx.detected_context:
                 _industry = ctx.detected_context.get("industry", "general")
-                _theme = ctx.detected_context.get("theme", "corporate")
+                _theme = ctx.detected_context.get("theme", "ocean-depths")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION
@@ -659,7 +741,8 @@ class PipelineOrchestrator:
         try:
             from app.services.streaming import streaming_service
             await streaming_service.publish_agent_start(
-                ctx.presentation_id, agent_name.value, ctx.execution_id
+                ctx.presentation_id, agent_name.value, ctx.execution_id,
+                generation_mode=ctx.generation_mode.value if ctx.generation_mode else None,
             )
         except Exception:
             pass  # streaming failures must never break the pipeline
@@ -857,6 +940,8 @@ class PipelineOrchestrator:
             await self._run_visual_refinement(ctx)
         elif agent_name == AgentName.QUALITY_SCORING:
             await self._run_quality_scoring(ctx)
+        elif agent_name == AgentName.VISUAL_QA:
+            await self._run_visual_qa(ctx)
 
     # ------------------------------------------------------------------
     # Individual agent runners
@@ -914,7 +999,7 @@ class PipelineOrchestrator:
         """Run the DesignAgent to produce a topic-specific DesignSpec."""
         detected = ctx.detected_context or {}
         industry = detected.get("industry", "general")
-        theme = detected.get("theme", "corporate")
+        theme = detected.get("theme", "ocean-depths")
 
         logger.info(
             "design_agent_input",
@@ -1146,6 +1231,7 @@ class PipelineOrchestrator:
             data_enrichment=ctx.enriched_data,
             design_spec=ctx.design_spec,
             execution_id=ctx.execution_id,
+            generation_mode=ctx.generation_mode,
         )
         ctx.optimized_prompt = prompt.to_dict()
         
@@ -1177,22 +1263,33 @@ class PipelineOrchestrator:
         """
         Invoke the configured primary LLM provider with optimised prompts
         and receive structured Slide_JSON (14.2).
+
+        After the call, if a failover occurred (the provider that actually
+        served the request differs from the primary), remap generation_mode
+        to the new provider's default (Req 1.5).
         """
         from langchain_core.messages import HumanMessage, SystemMessage
 
         prompt_data = ctx.optimized_prompt or {}
         system_prompt = prompt_data.get("system_prompt", "")
         user_prompt = prompt_data.get("user_prompt", "")
+
+        # Record the primary provider *before* the call so we can detect failover
+        pre_call_provider = self._provider_factory.primary_provider
         
         logger.info(
             "llm_provider_input",
             execution_id=ctx.execution_id,
             system_prompt_length=len(system_prompt),
             user_prompt_length=len(user_prompt),
-            provider=self._provider_factory.primary_provider.value if self._provider_factory.primary_provider else "unknown"
+            provider=pre_call_provider.value if pre_call_provider else "unknown",
+            generation_mode=ctx.generation_mode.value if ctx.generation_mode else None,
         )
 
-        async def call_llm(client):
+        # Track which provider actually served the request
+        _used_provider = [pre_call_provider]  # mutable container for closure
+
+        async def call_llm(client, *args, **kwargs):
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt),
@@ -1205,6 +1302,28 @@ class PipelineOrchestrator:
             execution_id=ctx.execution_id,
             industry=(ctx.detected_context or {}).get("industry"),
         )
+
+        # Detect provider failover and remap generation_mode (Req 1.5)
+        try:
+            from app.db.models import ProviderType as _PT
+            # After failover, the health monitor may have changed the effective provider.
+            # We check the fallback sequence — if primary failed, the next healthy one was used.
+            fallback_seq = self._provider_factory.get_fallback_sequence()
+            from app.services.provider_health import health_monitor
+            effective_provider = health_monitor.select_provider(fallback_seq)
+            if effective_provider and effective_provider != pre_call_provider:
+                old_mode = ctx.generation_mode
+                db_provider = _PT(effective_provider.value)
+                ctx.generation_mode = PROVIDER_DEFAULT_MODES.get(db_provider, GenerationMode.EXPRESS)
+                logger.info(
+                    "generation_mode_remapped_after_failover",
+                    from_provider=pre_call_provider.value if pre_call_provider else "unknown",
+                    to_provider=effective_provider.value,
+                    old_mode=old_mode.value if old_mode else None,
+                    new_mode=ctx.generation_mode.value,
+                )
+        except Exception as exc:
+            logger.warning("failover_mode_remap_check_failed", error=str(exc))
         
         logger.info(
             "llm_provider_raw_response",
@@ -1216,7 +1335,44 @@ class PipelineOrchestrator:
         # Parse JSON from LLM response
         import json, re
         # Strip markdown code fences if present
-        cleaned = re.sub(r"```(?:json)?\s*", "", raw_content).strip().rstrip("`").strip()
+        cleaned = re.sub(r"```(?:json|javascript)?\s*", "", raw_content).strip().rstrip("`").strip()
+
+        # --- Artisan mode: the LLM returns { "artisan_code": "..." } or a
+        # raw script.  Skip the slides-oriented normalisation path. ---
+        if ctx.generation_mode == GenerationMode.ARTISAN:
+            try:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError:
+                # Try to extract a JSON object
+                match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+                if match:
+                    try:
+                        parsed = json.loads(match.group())
+                    except json.JSONDecodeError:
+                        # Treat the whole response as a raw script
+                        parsed = {"artisan_code": cleaned}
+                else:
+                    # Treat the whole response as a raw script
+                    parsed = {"artisan_code": cleaned}
+
+            # If parsed dict doesn't have artisan_code, try to find it
+            if isinstance(parsed, dict) and "artisan_code" not in parsed:
+                for val in parsed.values():
+                    if isinstance(val, str) and "pres.addSlide()" in val:
+                        parsed = {"artisan_code": val}
+                        break
+                else:
+                    # Wrap the whole cleaned content as artisan_code
+                    parsed = {"artisan_code": cleaned}
+
+            ctx.raw_llm_output = parsed
+            logger.info(
+                "llm_provider_output_artisan",
+                execution_id=ctx.execution_id,
+                artisan_code_length=len(parsed.get("artisan_code", "")),
+            )
+            return
+
         try:
             slide_json = json.loads(cleaned)
             logger.info(
@@ -1308,7 +1464,8 @@ class PipelineOrchestrator:
             execution_id=ctx.execution_id,
             has_slides=bool(raw.get("slides")),
             slide_count=len(raw.get("slides", [])),
-            has_schema_version=bool(raw.get("schema_version"))
+            has_schema_version=bool(raw.get("schema_version")),
+            generation_mode=ctx.generation_mode.value if ctx.generation_mode else None,
         )
         
         validation_start = time.monotonic()
@@ -1316,6 +1473,7 @@ class PipelineOrchestrator:
             data=raw,
             execution_id=ctx.execution_id,
             apply_corrections=True,
+            generation_mode=ctx.generation_mode,
         )
         validation_elapsed = (time.monotonic() - validation_start) * 1000
         ctx.validated_slides = result.corrected_data or raw
@@ -1327,8 +1485,206 @@ class PipelineOrchestrator:
             errors_count=len(result.errors),
             corrections_applied=result.corrections_applied,
             final_slide_count=len(ctx.validated_slides.get("slides", [])),
-            elapsed_ms=round(validation_elapsed, 1)
+            elapsed_ms=round(validation_elapsed, 1),
         )
+
+        # --- Artisan retry logic (Req 6.1, 6.2, 6.3) ---
+        # On validation failure: retry LLM once with same prompt.
+        # On runtime error: retry once with error message appended.
+        # After both retries fail: fall back to STUDIO mode and re-run
+        # from PROMPT_ENGINEERING.
+        if ctx.generation_mode == GenerationMode.ARTISAN and not result.is_valid:
+            artisan_retried = await self._artisan_retry(ctx, result)
+            if artisan_retried:
+                # Retry succeeded — ctx.validated_slides already updated
+                return
+
+        # Track code generation success/failure for mode downgrade (Req 6.4)
+        if ctx.generation_mode in (GenerationMode.STUDIO, GenerationMode.CRAFT, GenerationMode.ARTISAN):
+            try:
+                provider_name = self._provider_factory.primary_provider.value
+                tracker = get_code_failure_tracker()
+                code_success = result.is_valid and len(result.errors) == 0
+                tracker.record(provider_name, code_success)
+
+                if tracker.should_downgrade(provider_name):
+                    old_mode = ctx.generation_mode
+                    ctx.generation_mode = tracker.downgraded_mode(old_mode)
+                    logger.warning(
+                        "generation_mode_downgraded",
+                        provider=provider_name,
+                        failure_rate=round(tracker.failure_rate(provider_name), 2),
+                        old_mode=old_mode.value,
+                        new_mode=ctx.generation_mode.value,
+                    )
+            except Exception as exc:
+                logger.warning("code_failure_tracking_error", error=str(exc))
+
+    async def _artisan_retry(
+        self,
+        ctx: PipelineContext,
+        initial_result: Any,
+    ) -> bool:
+        """Artisan-mode retry logic (Req 6.1, 6.2, 6.3).
+
+        1. Retry the LLM call once with the same prompt (validation failure).
+        2. If the first retry also fails, retry once more with the error
+           message appended to the prompt (runtime error context).
+        3. If both retries fail, fall back to STUDIO mode and schedule a
+           re-run from PROMPT_ENGINEERING.
+
+        Returns True if a retry succeeded and ctx.validated_slides is updated.
+        Returns False if all retries failed (fallback to STUDIO was triggered).
+        """
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        prompt_data = ctx.optimized_prompt or {}
+        system_prompt = prompt_data.get("system_prompt", "")
+        user_prompt = prompt_data.get("user_prompt", "")
+
+        error_messages = [e.message for e in initial_result.errors if hasattr(e, "message")]
+        error_summary = "; ".join(error_messages) if error_messages else "Validation failed"
+
+        # --- Retry 1: same prompt ---
+        logger.info(
+            "artisan_retry_attempt",
+            execution_id=ctx.execution_id,
+            attempt=1,
+            reason=error_summary[:200],
+        )
+        retry_result = await self._artisan_llm_retry(
+            ctx, system_prompt, user_prompt,
+        )
+        if retry_result is not None:
+            ctx.validated_slides = retry_result
+            logger.info("artisan_retry_succeeded", execution_id=ctx.execution_id, attempt=1)
+            return True
+
+        # --- Retry 2: append error context ---
+        augmented_prompt = (
+            f"{user_prompt}\n\n"
+            f"IMPORTANT: Your previous attempt failed with the following errors. "
+            f"Please fix these issues:\n{error_summary}"
+        )
+        logger.info(
+            "artisan_retry_attempt",
+            execution_id=ctx.execution_id,
+            attempt=2,
+            reason="retry_with_error_context",
+        )
+        retry_result = await self._artisan_llm_retry(
+            ctx, system_prompt, augmented_prompt,
+        )
+        if retry_result is not None:
+            ctx.validated_slides = retry_result
+            logger.info("artisan_retry_succeeded", execution_id=ctx.execution_id, attempt=2)
+            return True
+
+        # --- Both retries failed: fall back to STUDIO mode (Req 6.3) ---
+        logger.warning(
+            "artisan_fallback_to_studio",
+            execution_id=ctx.execution_id,
+            error=error_summary[:200],
+        )
+        ctx.generation_mode = GenerationMode.STUDIO
+
+        # Record the failure for CodeFailureTracker
+        try:
+            provider_name = self._provider_factory.primary_provider.value
+            tracker = get_code_failure_tracker()
+            tracker.record(provider_name, False)
+        except Exception:
+            pass
+
+        # Remove downstream agents so the pipeline re-runs from PROMPT_ENGINEERING
+        for agent in [
+            AgentName.PROMPT_ENGINEERING,
+            AgentName.LLM_PROVIDER,
+            AgentName.VALIDATION,
+            AgentName.VISUAL_REFINEMENT,
+            AgentName.QUALITY_SCORING,
+            AgentName.VISUAL_QA,
+        ]:
+            if agent in ctx.completed_agents:
+                ctx.completed_agents.remove(agent)
+
+        return False
+
+    async def _artisan_llm_retry(
+        self,
+        ctx: PipelineContext,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Call the LLM and validate the response for artisan mode.
+
+        Returns the validated corrected_data dict on success, or None on
+        failure.
+        """
+        from langchain_core.messages import HumanMessage, SystemMessage
+        import json
+        import re
+
+        try:
+            async def call_llm(client, *args, **kwargs):
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt),
+                ]
+                response = await client.ainvoke(messages)
+                return response.content
+
+            raw_content = await self._provider_factory.call_with_failover(
+                call_llm,
+                execution_id=ctx.execution_id,
+                industry=(ctx.detected_context or {}).get("industry"),
+            )
+
+            # Parse the LLM response — artisan mode returns { "artisan_code": "..." }
+            cleaned = re.sub(r"```(?:json|javascript)?\s*", "", raw_content).strip().rstrip("`").strip()
+            try:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError:
+                # Try to extract JSON object
+                match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+                if match:
+                    try:
+                        parsed = json.loads(match.group())
+                    except json.JSONDecodeError:
+                        return None
+                else:
+                    # Might be raw script without JSON wrapper
+                    parsed = {"artisan_code": cleaned}
+
+            # If parsed is not a dict with artisan_code, wrap it
+            if isinstance(parsed, dict) and "artisan_code" not in parsed:
+                # Check if any value looks like artisan code
+                for val in parsed.values():
+                    if isinstance(val, str) and "pres.addSlide()" in val:
+                        parsed = {"artisan_code": val}
+                        break
+
+            ctx.raw_llm_output = parsed
+
+            # Validate
+            result = self._validation.validate(
+                data=parsed,
+                execution_id=ctx.execution_id,
+                apply_corrections=True,
+                generation_mode=GenerationMode.ARTISAN,
+            )
+
+            if result.is_valid:
+                return result.corrected_data or parsed
+            return None
+
+        except Exception as exc:
+            logger.warning(
+                "artisan_retry_llm_call_failed",
+                execution_id=ctx.execution_id,
+                error=str(exc),
+            )
+            return None
 
     async def _run_visual_refinement(self, ctx: PipelineContext) -> None:
         """
@@ -1339,7 +1695,19 @@ class PipelineOrchestrator:
         
         This is the highest ROI enhancement: +0.70 quality points for $0.0076 per presentation
         (or $0.0023-$0.0038 with optimizations enabled).
+
+        Skipped for artisan mode — the LLM script handles all visual styling directly.
         """
+        # Artisan mode: the LLM generates the complete script with all visual
+        # styling baked in; visual refinement operates on slide JSON dicts and
+        # is not applicable.
+        if ctx.generation_mode == GenerationMode.ARTISAN:
+            logger.info(
+                "visual_refinement_skipped_artisan_mode",
+                execution_id=ctx.execution_id,
+            )
+            return
+
         from app.services.optimized_visual_refinement import optimized_visual_refinement
         from app.core.config import settings
         
@@ -1478,6 +1846,64 @@ class PipelineOrchestrator:
                         retry=ctx.feedback_loop_count
                     )
 
+    async def _run_visual_qa(self, ctx: PipelineContext) -> None:
+        """
+        Run Visual QA Agent to inspect rendered slides for visual defects
+        and apply automatic fixes (trim titles, reduce bullets, change layout).
+
+        Routes to /preview-code when generation_mode is studio or craft,
+        and to /preview-artisan when generation_mode is artisan (Req 9.1).
+        """
+        from app.agents.visual_qa import visual_qa_agent
+
+        slides_data = ctx.validated_slides or {}
+        detected = ctx.detected_context or {}
+        theme = detected.get("theme", "ocean-depths")
+        design_spec = ctx.design_spec
+
+        # For artisan mode, the validated data contains artisan_code, not slides
+        if ctx.generation_mode == GenerationMode.ARTISAN:
+            slides = []  # Visual QA will use artisan_code via the agent
+        else:
+            slides = slides_data.get("slides", [])
+
+        logger.info(
+            "visual_qa_input",
+            execution_id=ctx.execution_id,
+            slide_count=len(slides),
+            theme=theme,
+            has_design_spec=bool(design_spec),
+            generation_mode=ctx.generation_mode.value if ctx.generation_mode else None,
+        )
+
+        result = await visual_qa_agent.run(
+            slides=slides,
+            presentation_id=ctx.presentation_id,
+            execution_id=ctx.execution_id,
+            design_spec=design_spec,
+            theme=theme,
+            generation_mode=ctx.generation_mode,
+            artisan_code=slides_data.get("artisan_code") if ctx.generation_mode == GenerationMode.ARTISAN else None,
+        )
+
+        # Store result in pipeline context
+        ctx.visual_qa_result = result.to_dict()
+
+        # Update validated_slides with any fixes applied by the QA agent
+        if ctx.generation_mode != GenerationMode.ARTISAN:
+            ctx.validated_slides["slides"] = slides
+
+        logger.info(
+            "visual_qa_output",
+            execution_id=ctx.execution_id,
+            approved=result.approved,
+            iterations=result.iterations_run,
+            total_found=result.total_issues_found,
+            fixed=result.issues_fixed,
+            remaining=result.remaining_issues,
+            elapsed_ms=round(result.elapsed_ms, 1),
+        )
+
     # ------------------------------------------------------------------
     # State persistence helpers
     # ------------------------------------------------------------------
@@ -1499,6 +1925,7 @@ class PipelineOrchestrator:
             AgentName.LLM_PROVIDER: ctx.raw_llm_output,
             AgentName.VALIDATION: ctx.validated_slides,
             AgentName.QUALITY_SCORING: ctx.quality_result,
+            AgentName.VISUAL_QA: ctx.visual_qa_result,
         }
         state = output_map.get(agent_name) or {}
         await state_layer.persist_agent_state(db, ctx.execution_id, agent_name, state)
@@ -1548,10 +1975,20 @@ class PipelineOrchestrator:
         # Resolve template_id — may have been set by _run_storyboarding (29.3)
         resolved_template_id = detected.get("resolved_template_id")
 
+        # For artisan mode, slides_data is {"artisan_code": "..."} rather than
+        # {"slides": [...]}. Store the whole dict so the export worker can
+        # route to /build-artisan with the artisan_code payload.
+        if ctx.generation_mode == GenerationMode.ARTISAN:
+            slides_value = slides_data  # store entire dict including artisan_code
+            total_slides_value = None
+        else:
+            slides_value = slides_data.get("slides")
+            total_slides_value = slides_data.get("total_slides") or len(slides_data.get("slides") or [])
+
         async with async_session_maker() as db:
             update_values: dict = dict(
-                slides=slides_data.get("slides"),
-                total_slides=slides_data.get("total_slides") or len(slides_data.get("slides") or []),
+                slides=slides_value,
+                total_slides=total_slides_value,
                 status=status,
                 quality_score=(ctx.quality_result or {}).get("composite_score"),
                 detected_industry=detected.get("industry"),
@@ -1611,7 +2048,7 @@ class PipelineOrchestrator:
                 from app.agents.prompt_engineering import PromptEngineeringAgent
 
                 _industry = detected.get("industry", "general")
-                _theme = detected.get("theme", "corporate")
+                _theme = detected.get("theme", "ocean-depths")
                 _provider = self._provider_factory.primary_provider.value if self._agents_loaded else "claude"
                 _phash = compute_provider_config_hash(_provider)
                 _pv = PromptEngineeringAgent.PROMPT_VERSION

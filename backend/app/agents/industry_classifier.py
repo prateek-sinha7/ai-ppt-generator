@@ -472,42 +472,59 @@ Return your classification as JSON."""
         """
         Select presentation theme based on industry and audience.
 
-        Priority: corporate is the default. Agent selects the best fit:
-        - corporate:     clean enterprise navy-and-white for all general use (default)
-        - dark_modern:   tech, fintech, data-heavy, technical audiences
-        - executive:     strategy, consulting, executive C-suite presentations
-        - professional:  finance, professional services, analyst audiences
+        Maps industries and audiences to the most appropriate theme:
+        - tech-innovation:    technology, fintech, technical audiences
+        - arctic-frost:       healthcare, pharmaceutical
+        - ocean-depths:       finance, insurance, consulting (default)
+        - forest-canopy:      sustainability, wellness, environmental
+        - sunset-boulevard:   creative, marketing, advertising
+        - desert-rose:        fashion, beauty
+        - golden-hour:        hospitality, artisan
+        - botanical-garden:   food, agriculture
+        - midnight-galaxy:    entertainment, gaming
+        - modern-minimalist:  executive audiences in general business
 
         Returns:
-            Theme name: "corporate" | "dark_modern" | "executive" | "professional"
+            Theme name string
         """
-        # Technical audiences → dark modern
+        # Technical audiences → tech-innovation
         if audience == "technical":
-            return "dark_modern"
+            return "tech-innovation"
 
-        # Executive / C-suite strategy content → executive
+        # Executive audiences in general business → modern-minimalist
         if audience == "executives":
-            # For executives, prefer executive for most industries except pure tech
             if industry in ("technology", "fintech"):
-                return "dark_modern"
-            # All other industries with executive audience get executive
-            return "executive"
+                return "tech-innovation"
+            return "modern-minimalist"
 
-        # Analyst / finance audiences → professional
-        if audience == "analysts":
-            if industry in ("finance", "insurance", "healthcare"):
-                return "professional"
-
-        # Industry-based selection for remaining cases
+        # Industry-based selection
         if industry in ("technology", "fintech"):
-            return "dark_modern"
-        if industry in ("finance", "insurance"):
-            return "professional"
-        if industry in ("consulting", "strategy"):
-            return "executive"
+            return "tech-innovation"
+        if industry in ("healthcare", "pharmaceutical"):
+            return "arctic-frost"
+        if industry in ("finance", "insurance", "consulting", "strategy"):
+            return "ocean-depths"
+        if industry in ("sustainability", "wellness", "environmental", "energy"):
+            return "forest-canopy"
+        if industry in ("creative", "marketing", "advertising", "media"):
+            return "sunset-boulevard"
+        if industry in ("fashion", "beauty", "cosmetics"):
+            return "desert-rose"
+        if industry in ("hospitality", "artisan", "luxury", "real_estate"):
+            return "golden-hour"
+        if industry in ("food", "agriculture", "farming"):
+            return "botanical-garden"
+        if industry in ("entertainment", "gaming", "music"):
+            return "midnight-galaxy"
+        if industry in ("education", "manufacturing", "retail"):
+            return "modern-minimalist"
 
-        # Default: corporate
-        return "corporate"
+        # Analyst audiences in finance → ocean-depths
+        if audience == "analysts":
+            return "ocean-depths"
+
+        # Default
+        return "ocean-depths"
     
     async def classify(
         self,

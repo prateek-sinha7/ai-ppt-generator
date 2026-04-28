@@ -295,9 +295,9 @@ export default function PptxPreviewPanel({
                 <p className="text-white/25 text-xs mt-0.5">This takes 10–20 seconds</p>
               </div>
               {/* Animated dots */}
-              <div className="flex gap-1.5 mt-2">
+              <div className="flex gap-2 mt-3">
                 {[0,1,2].map(i => (
-                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400/60 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                  <div key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s`, backgroundColor: 'rgba(96,165,250,0.6)' }} />
                 ))}
               </div>
             </div>
@@ -395,13 +395,14 @@ export default function PptxPreviewPanel({
                   >
                     {/* Thumbnail */}
                     <div
-                      className="relative rounded-lg overflow-hidden transition-all"
+                      className="relative rounded-lg overflow-hidden transition-all duration-200"
                       style={{
                         width: 96,
                         height: 54,
                         outline: isActive ? `2px solid ${cfg.color}` : '1px solid rgba(255,255,255,0.08)',
                         opacity: isActive ? 1 : 0.55,
-                        transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                        transform: isActive ? 'scale(1.08)' : 'scale(1)',
+                        filter: isActive ? 'none' : 'brightness(0.85)',
                       }}
                     >
                       <img src={img} alt={m?.title || `Slide ${i + 1}`} className="w-full h-full object-cover" />

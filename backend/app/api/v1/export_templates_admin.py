@@ -244,7 +244,7 @@ async def trigger_pptx_export(
         )
 
     slides_data = presentation.slides or []
-    theme = presentation.selected_theme or "dark_modern"
+    theme = presentation.selected_theme or "ocean-depths"
     design_spec = presentation.design_spec or {}
 
     # Build PPTX bytes — run in thread pool to avoid blocking the async event loop
@@ -306,7 +306,7 @@ async def get_pptx_preview_images(
     slides_data = presentation.slides or []
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
-    theme = presentation.selected_theme or "dark_modern"
+    theme = presentation.selected_theme or "ocean-depths"
     design_spec = presentation.design_spec or {}
 
     logger.info(
@@ -450,7 +450,7 @@ async def download_pptx(
         )
 
     slides_data = presentation.slides or []
-    theme = presentation.selected_theme or "dark_modern"
+    theme = presentation.selected_theme or "ocean-depths"
     design_spec = presentation.design_spec or {}
 
     import asyncio
@@ -541,7 +541,7 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
     if isinstance(slides_data, dict):
         slides_data = slides_data.get("slides", [])
 
-    html_content = _build_preview_html(slides_data, presentation.selected_theme or "dark_modern")
+    html_content = _build_preview_html(slides_data, presentation.selected_theme or "ocean-depths")
 
     pdf_bytes: Optional[bytes] = None
 
@@ -604,12 +604,19 @@ async def _render_pdf_preview(presentation_id: str, presentation: Presentation) 
 def _build_preview_html(slides: List[Dict[str, Any]], theme: str) -> str:
     """Build a minimal HTML representation of slides for PDF rendering."""
     theme_colors = {
-        "executive": {"bg": "#003366", "text": "#FFFFFF", "accent": "#0066CC"},
-        "professional": {"bg": "#86BC25", "text": "#FFFFFF", "accent": "#012169"},
-        "dark_modern": {"bg": "#1A1A2E", "text": "#E0E0E0", "accent": "#16213E"},
-        "corporate": {"bg": "#002855", "text": "#FFFFFF", "accent": "#0078AC"},
+        "ocean-depths": {"bg": "#1a2332", "text": "#FFFFFF", "accent": "#2d8b8b"},
+        "ocean_depths": {"bg": "#1a2332", "text": "#FFFFFF", "accent": "#2d8b8b"},
+        "sunset-boulevard": {"bg": "#264653", "text": "#FFFFFF", "accent": "#e76f51"},
+        "forest-canopy": {"bg": "#2d4a2b", "text": "#FFFFFF", "accent": "#a4ac86"},
+        "modern-minimalist": {"bg": "#36454f", "text": "#FFFFFF", "accent": "#708090"},
+        "golden-hour": {"bg": "#4a403a", "text": "#FFFFFF", "accent": "#f4a900"},
+        "arctic-frost": {"bg": "#4a6fa5", "text": "#FFFFFF", "accent": "#d4e4f7"},
+        "desert-rose": {"bg": "#5d2e46", "text": "#FFFFFF", "accent": "#d4a5a5"},
+        "tech-innovation": {"bg": "#1e1e1e", "text": "#FFFFFF", "accent": "#0066ff"},
+        "botanical-garden": {"bg": "#4a7c59", "text": "#FFFFFF", "accent": "#f9a620"},
+        "midnight-galaxy": {"bg": "#2b1e3e", "text": "#e6e6fa", "accent": "#4a4e8f"},
     }
-    colors = theme_colors.get(theme, theme_colors["corporate"])
+    colors = theme_colors.get(theme, theme_colors["ocean-depths"])
 
     slides_html = ""
     for slide in slides:

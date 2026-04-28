@@ -74,7 +74,7 @@ def _make_mock_presentation(
     p.detected_sub_sector = "clinical research"
     p.inferred_audience = "executives"
     p.selected_template_id = None
-    p.selected_theme = "corporate"
+    p.selected_theme = "ocean-depths"
     p.compliance_context = ["HIPAA"]
     p.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
     p.updated_at = datetime(2024, 1, 2, tzinfo=timezone.utc)

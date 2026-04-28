@@ -430,7 +430,7 @@ class PresentationCacheService:
         provider_type: str,
         model_name: str,
         prompt_version: str,
-        theme: str = "corporate",
+        theme: str = "ocean-depths",
     ) -> Dict[str, int]:
         """
         Warm the cache for a set of top topics per industry.

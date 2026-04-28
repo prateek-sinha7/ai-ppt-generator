@@ -238,18 +238,18 @@ class TestVisualRegressionSnapshots:
             "title": "AI in Healthcare",
             "content": {"subtitle": "Clinical Decision Support Systems"},
             "visual_hint": "centered",
-            "theme": "executive",
+            "theme": "ocean-depths",
         }
 
         # In a real implementation, this would render the component and compare
         # against a stored snapshot. For now, we verify the data structure.
         assert slide_data["type"] == "title"
         assert slide_data["visual_hint"] == "centered"
-        assert slide_data["theme"] == "executive"
+        assert slide_data["theme"] == "ocean-depths"
 
-    def test_content_slide_snapshot_professional_theme(self):
+    def test_content_slide_snapshot_Modern Minimalist_theme(self):
         """
-        GIVEN a content slide with Professional theme
+        GIVEN a content slide with Modern Minimalist theme
         WHEN rendered
         THEN output matches expected snapshot
         """
@@ -260,12 +260,12 @@ class TestVisualRegressionSnapshots:
             "title": "Key Challenges",
             "content": {"bullets": ["Challenge 1", "Challenge 2", "Challenge 3"]},
             "visual_hint": "bullet-left",
-            "theme": "professional",
+            "theme": "modern-minimalist",
         }
 
         assert slide_data["type"] == "content"
         assert slide_data["visual_hint"] == "bullet-left"
-        assert slide_data["theme"] == "professional"
+        assert slide_data["theme"] == "modern-minimalist"
         assert len(slide_data["content"]["bullets"]) == 3
 
     def test_chart_slide_snapshot_dark_modern_theme(self):
@@ -284,12 +284,12 @@ class TestVisualRegressionSnapshots:
                 "chart_type": "bar",
             },
             "visual_hint": "split-chart-right",
-            "theme": "dark_modern",
+            "theme": "tech-innovation",
         }
 
         assert slide_data["type"] == "chart"
         assert slide_data["visual_hint"] == "split-chart-right"
-        assert slide_data["theme"] == "dark_modern"
+        assert slide_data["theme"] == "tech-innovation"
         assert slide_data["content"]["chart_type"] == "bar"
 
     def test_table_slide_snapshot_all_themes(self):
@@ -298,7 +298,7 @@ class TestVisualRegressionSnapshots:
         WHEN rendered with each theme
         THEN output matches expected snapshot for each theme
         """
-        for theme in ["executive", "professional", "dark_modern", "corporate"]:
+        for theme in ["ocean-depths", "modern-minimalist", "tech-innovation", "ocean-depths"]:
             slide_data = {
                 "slide_id": str(uuid.uuid4()),
                 "slide_number": 4,
@@ -324,7 +324,7 @@ class TestVisualRegressionSnapshots:
         WHEN rendered with each theme
         THEN output matches expected snapshot for each theme
         """
-        for theme in ["executive", "professional", "dark_modern", "corporate"]:
+        for theme in ["ocean-depths", "modern-minimalist", "tech-innovation", "ocean-depths"]:
             slide_data = {
                 "slide_id": str(uuid.uuid4()),
                 "slide_number": 5,
@@ -360,7 +360,7 @@ class TestVisualRegressionSnapshots:
                 "title": f"{slide_type.title()} Slide",
                 "content": {},
                 "visual_hint": "centered",
-                "theme": "corporate",
+                "theme": "ocean-depths",
             }
 
             # Verify deterministic structure
@@ -651,7 +651,7 @@ class TestCostCeilingEnforcement:
             mock_ic_result.target_audience = "technical"
             mock_ic_result.selected_template_id = None
             mock_ic_result.selected_template_name = "Tech Briefing"
-            mock_ic_result.theme = "corporate"
+            mock_ic_result.theme = "ocean-depths"
             mock_ic_result.compliance_context = []
             mock_ic_result.classification_method = "keyword"
             mock_ic.classify = AsyncMock(return_value=mock_ic_result)

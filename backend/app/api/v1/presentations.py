@@ -110,6 +110,7 @@ def _add_rate_limit_headers(response: Response, info: Dict[str, int]) -> None:
 class CreatePresentationRequest(BaseModel):
     topic: str = Field(..., min_length=1, max_length=5000, description="Presentation topic or pasted content")
     theme: Optional[str] = Field(None, description="Optional theme preference: corporate, executive, professional, dark-modern")
+    generation_mode: Optional[str] = Field(None, description="Generation mode: artisan, studio, craft, or express")
 
     @field_validator("topic")
     @classmethod
@@ -123,10 +124,32 @@ class CreatePresentationRequest(BaseModel):
     def theme_must_be_valid(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        valid = {"corporate", "executive", "professional", "dark-modern", "dark_modern"}
+        valid = {
+            "ocean-depths", "ocean_depths", "sunset-boulevard", "sunset_boulevard",
+            "forest-canopy", "forest_canopy", "modern-minimalist", "modern_minimalist",
+            "golden-hour", "golden_hour", "arctic-frost", "arctic_frost",
+            "desert-rose", "desert_rose", "tech-innovation", "tech_innovation",
+            "botanical-garden", "botanical_garden", "midnight-galaxy", "midnight_galaxy",
+        }
         if v.strip().lower() not in valid:
-            raise ValueError(f"theme must be one of: corporate, executive, professional, dark-modern")
+            raise ValueError(f"theme must be one of: ocean-depths, sunset-boulevard, forest-canopy, modern-minimalist, golden-hour, arctic-frost, desert-rose, tech-innovation, botanical-garden, midnight-galaxy")
         return v.strip().lower()
+
+    @field_validator("generation_mode")
+    @classmethod
+    def generation_mode_must_be_valid(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        new_modes = {"artisan", "studio", "craft", "express"}
+        old_modes = {"full_code", "code", "hybrid", "json"}
+        cleaned = v.strip().lower()
+        if cleaned in old_modes:
+            raise ValueError(
+                f"Mode '{cleaned}' has been renamed. Use: artisan, studio, craft, or express"
+            )
+        if cleaned not in new_modes:
+            raise ValueError("generation_mode must be one of: artisan, studio, craft, express")
+        return cleaned
 
 
 class CreatePresentationResponse(BaseModel):
@@ -183,6 +206,7 @@ _AGENT_PROGRESS: Dict[str, int] = {
     "validation": 80,
     "visual_refinement": 88,
     "quality_scoring": 95,
+    "visual_qa": 97,
 }
 
 _STATUS_PROGRESS: Dict[str, int] = {
@@ -398,6 +422,7 @@ async def create_presentation(
             "tenant_id": str(current_user.tenant_id),
             "idempotency_key": idempotency_key,
             "user_selected_theme": body.theme,
+            "generation_mode": body.generation_mode,
         },
         task_id=str(execution.id),
     )
@@ -813,6 +838,133 @@ async def get_export_status(
             status=task_result.state.lower(),
             message="Export in progress...",
         )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/presentations/{id}/export/pdf   — enqueue PDF export
+# POST /api/v1/presentations/{id}/export/docx  — enqueue DOCX export
+# POST /api/v1/presentations/{id}/export/xlsx  — enqueue XLSX export
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/presentations/{presentation_id}/export/pdf",
+    response_model=ExportResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def export_pdf(
+    presentation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ExportResponse:
+    """Enqueue a PDF export job for a completed presentation."""
+    result = await db.execute(
+        select(Presentation).where(
+            Presentation.presentation_id == presentation_id,
+            Presentation.tenant_id == current_user.tenant_id,
+        )
+    )
+    presentation = result.scalar_one_or_none()
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    if presentation.status != PresentationStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Presentation must be completed before exporting.",
+        )
+
+    from app.worker.tasks import export_pdf_task
+    idempotency_key = f"export_pdf:{presentation_id}:{int(time.time())}"
+    task = export_pdf_task.apply_async(
+        kwargs={"presentation_id": presentation_id, "idempotency_key": idempotency_key}
+    )
+
+    return ExportResponse(
+        job_id=task.id,
+        presentation_id=presentation_id,
+        status="queued",
+        message="PDF export queued. Poll /export/status for the download URL.",
+    )
+
+
+@router.post(
+    "/presentations/{presentation_id}/export/docx",
+    response_model=ExportResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def export_docx(
+    presentation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ExportResponse:
+    """Enqueue a DOCX export job for a completed presentation."""
+    result = await db.execute(
+        select(Presentation).where(
+            Presentation.presentation_id == presentation_id,
+            Presentation.tenant_id == current_user.tenant_id,
+        )
+    )
+    presentation = result.scalar_one_or_none()
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    if presentation.status != PresentationStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Presentation must be completed before exporting.",
+        )
+
+    from app.worker.tasks import export_docx_task
+    idempotency_key = f"export_docx:{presentation_id}:{int(time.time())}"
+    task = export_docx_task.apply_async(
+        kwargs={"presentation_id": presentation_id, "idempotency_key": idempotency_key}
+    )
+
+    return ExportResponse(
+        job_id=task.id,
+        presentation_id=presentation_id,
+        status="queued",
+        message="DOCX export queued. Poll /export/status for the download URL.",
+    )
+
+
+@router.post(
+    "/presentations/{presentation_id}/export/xlsx",
+    response_model=ExportResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def export_xlsx(
+    presentation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ExportResponse:
+    """Enqueue an XLSX export job for a completed presentation."""
+    result = await db.execute(
+        select(Presentation).where(
+            Presentation.presentation_id == presentation_id,
+            Presentation.tenant_id == current_user.tenant_id,
+        )
+    )
+    presentation = result.scalar_one_or_none()
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    if presentation.status != PresentationStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Presentation must be completed before exporting.",
+        )
+
+    from app.worker.tasks import export_xlsx_task
+    idempotency_key = f"export_xlsx:{presentation_id}:{int(time.time())}"
+    task = export_xlsx_task.apply_async(
+        kwargs={"presentation_id": presentation_id, "idempotency_key": idempotency_key}
+    )
+
+    return ExportResponse(
+        job_id=task.id,
+        presentation_id=presentation_id,
+        status="queued",
+        message="XLSX export queued. Poll /export/status for the download URL.",
+    )
 
 
 # ---------------------------------------------------------------------------

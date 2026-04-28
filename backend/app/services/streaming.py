@@ -132,12 +132,16 @@ class StreamingService:
     # ------------------------------------------------------------------
 
     async def publish_agent_start(
-        self, presentation_id: str, agent_name: str, execution_id: str
+        self, presentation_id: str, agent_name: str, execution_id: str,
+        generation_mode: Optional[str] = None,
     ) -> str:
+        data: Dict[str, Any] = {"agent": agent_name, "execution_id": execution_id}
+        if generation_mode:
+            data["generation_mode"] = generation_mode
         return await self.publish_event(
             presentation_id,
             "agent_start",
-            {"agent": agent_name, "execution_id": execution_id},
+            data,
         )
 
     async def publish_agent_complete(

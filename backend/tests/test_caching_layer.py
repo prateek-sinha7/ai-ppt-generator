@@ -98,8 +98,8 @@ class TestCompositeKeyGeneration:
 
     def test_key_is_deterministic(self):
         """Same inputs always produce the same key."""
-        key1 = _make_slide_json_key("AI in Healthcare", "healthcare", "corporate", "abc123", "1.0.0")
-        key2 = _make_slide_json_key("AI in Healthcare", "healthcare", "corporate", "abc123", "1.0.0")
+        key1 = _make_slide_json_key("AI in Healthcare", "healthcare", "ocean-depths", "abc123", "1.0.0")
+        key2 = _make_slide_json_key("AI in Healthcare", "healthcare", "ocean-depths", "abc123", "1.0.0")
         assert key1 == key2
 
     def test_key_starts_with_prefix(self):
@@ -107,39 +107,39 @@ class TestCompositeKeyGeneration:
         assert key.startswith(f"{PREFIX_SLIDE_JSON}:")
 
     def test_different_topics_produce_different_keys(self):
-        key1 = _make_slide_json_key("Topic A", "healthcare", "corporate", "abc", "1.0.0")
-        key2 = _make_slide_json_key("Topic B", "healthcare", "corporate", "abc", "1.0.0")
+        key1 = _make_slide_json_key("Topic A", "healthcare", "ocean-depths", "abc", "1.0.0")
+        key2 = _make_slide_json_key("Topic B", "healthcare", "ocean-depths", "abc", "1.0.0")
         assert key1 != key2
 
     def test_different_industries_produce_different_keys(self):
-        key1 = _make_slide_json_key("topic", "healthcare", "corporate", "abc", "1.0.0")
-        key2 = _make_slide_json_key("topic", "finance", "corporate", "abc", "1.0.0")
+        key1 = _make_slide_json_key("topic", "healthcare", "ocean-depths", "abc", "1.0.0")
+        key2 = _make_slide_json_key("topic", "finance", "ocean-depths", "abc", "1.0.0")
         assert key1 != key2
 
     def test_different_themes_produce_different_keys(self):
-        key1 = _make_slide_json_key("topic", "healthcare", "corporate", "abc", "1.0.0")
-        key2 = _make_slide_json_key("topic", "healthcare", "professional", "abc", "1.0.0")
+        key1 = _make_slide_json_key("topic", "healthcare", "ocean-depths", "abc", "1.0.0")
+        key2 = _make_slide_json_key("topic", "healthcare", "modern-minimalist", "abc", "1.0.0")
         assert key1 != key2
 
     def test_different_provider_hashes_produce_different_keys(self):
-        key1 = _make_slide_json_key("topic", "healthcare", "corporate", "hash_claude", "1.0.0")
-        key2 = _make_slide_json_key("topic", "healthcare", "corporate", "hash_openai", "1.0.0")
+        key1 = _make_slide_json_key("topic", "healthcare", "ocean-depths", "hash_claude", "1.0.0")
+        key2 = _make_slide_json_key("topic", "healthcare", "ocean-depths", "hash_openai", "1.0.0")
         assert key1 != key2
 
     def test_different_prompt_versions_produce_different_keys(self):
-        key1 = _make_slide_json_key("topic", "healthcare", "corporate", "abc", "1.0.0")
-        key2 = _make_slide_json_key("topic", "healthcare", "corporate", "abc", "1.1.0")
+        key1 = _make_slide_json_key("topic", "healthcare", "ocean-depths", "abc", "1.0.0")
+        key2 = _make_slide_json_key("topic", "healthcare", "ocean-depths", "abc", "1.1.0")
         assert key1 != key2
 
     def test_topic_normalisation_case_insensitive(self):
         """Topic is normalised to lowercase before hashing."""
-        key1 = _make_slide_json_key("AI in Healthcare", "healthcare", "corporate", "abc", "1.0.0")
-        key2 = _make_slide_json_key("ai in healthcare", "healthcare", "corporate", "abc", "1.0.0")
+        key1 = _make_slide_json_key("AI in Healthcare", "healthcare", "ocean-depths", "abc", "1.0.0")
+        key2 = _make_slide_json_key("ai in healthcare", "healthcare", "ocean-depths", "abc", "1.0.0")
         assert key1 == key2
 
     def test_topic_normalisation_strips_whitespace(self):
-        key1 = _make_slide_json_key("  AI in Healthcare  ", "healthcare", "corporate", "abc", "1.0.0")
-        key2 = _make_slide_json_key("AI in Healthcare", "healthcare", "corporate", "abc", "1.0.0")
+        key1 = _make_slide_json_key("  AI in Healthcare  ", "healthcare", "ocean-depths", "abc", "1.0.0")
+        key2 = _make_slide_json_key("AI in Healthcare", "healthcare", "ocean-depths", "abc", "1.0.0")
         assert key1 == key2
 
     def test_key_contains_sha256_hex_digest(self):
@@ -200,7 +200,7 @@ class TestResearchCache:
 
     @pytest.mark.asyncio
     async def test_research_key_uses_topic_and_industry(self, cache_service, sample_research):
-        """The cache key must incorporate both topic and industry."""
+        """The cache key must inOcean Depths both topic and industry."""
         key1 = _make_research_key("topic A", "healthcare")
         key2 = _make_research_key("topic A", "finance")
         key3 = _make_research_key("topic B", "healthcare")
@@ -264,7 +264,7 @@ class TestSlideJsonCache:
             mock_redis._client = None
 
             result = await cache_service.get_slide_json(
-                "topic", "healthcare", "corporate", "hash", "1.0.0"
+                "topic", "healthcare", "ocean-depths", "hash", "1.0.0"
             )
             assert result is None
 
@@ -275,7 +275,7 @@ class TestSlideJsonCache:
             mock_redis._client = None
 
             result = await cache_service.get_slide_json(
-                "topic", "healthcare", "corporate", "hash", "1.0.0"
+                "topic", "healthcare", "ocean-depths", "hash", "1.0.0"
             )
             assert result == sample_slide_json
 
@@ -286,7 +286,7 @@ class TestSlideJsonCache:
             mock_redis._client = None
 
             await cache_service.set_slide_json(
-                "topic", "healthcare", "corporate", "hash", "1.0.0", sample_slide_json
+                "topic", "healthcare", "ocean-depths", "hash", "1.0.0", sample_slide_json
             )
 
             mock_redis.set.assert_called_once()
@@ -410,7 +410,7 @@ class TestCacheAnalytics:
             mock_redis._client = None
 
             await cache_service.get_slide_json(
-                "topic", "healthcare", "corporate", "hash", "1.0.0"
+                "topic", "healthcare", "ocean-depths", "hash", "1.0.0"
             )
 
         hit_keys = [k for k, _ in increment_calls]
@@ -432,7 +432,7 @@ class TestCacheAnalytics:
             mock_redis._client = None
 
             await cache_service.get_slide_json(
-                "topic", "healthcare", "corporate", "hash", "1.0.0"
+                "topic", "healthcare", "ocean-depths", "hash", "1.0.0"
             )
 
         miss_keys = [k for k, _ in increment_calls]
@@ -453,7 +453,7 @@ class TestCacheAnalytics:
             mock_redis._client = None
 
             await cache_service.set_slide_json(
-                "topic", "healthcare", "corporate", "hash", "1.0.0", sample_slide_json
+                "topic", "healthcare", "ocean-depths", "hash", "1.0.0", sample_slide_json
             )
 
         from app.services.presentation_cache import PREFIX_ANALYTICS_BYTES

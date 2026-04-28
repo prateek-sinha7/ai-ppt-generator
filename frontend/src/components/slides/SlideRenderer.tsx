@@ -10,7 +10,7 @@ import { MetricSlide } from './MetricSlide'
 
 interface SlideRendererProps {
   slide: SlideData
-  theme: 'executive' | 'professional' | 'dark-modern' | 'corporate'
+  theme: 'ocean-depths' | 'sunset-boulevard' | 'forest-canopy' | 'modern-minimalist' | 'golden-hour' | 'arctic-frost' | 'desert-rose' | 'tech-innovation' | 'botanical-garden' | 'midnight-galaxy'
   designSpec?: DesignSpec | null
   /** Whether this is the first or last slide (dark background sandwich) */
   isDark?: boolean
@@ -57,6 +57,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
           highlight_text={slide.highlight_text}
           transition={slide.transition}
           isDark={isDark}
+          layout_variant={slide.layout_variant}
           className={className}
         />
       )
@@ -86,6 +87,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
           icon_name={slide.icon_name}
           highlight_text={slide.highlight_text}
           transition={slide.transition}
+          layout_variant={slide.layout_variant}
           className={className}
         />
       )
@@ -115,6 +117,8 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
           icon_name={slide.icon_name}
           highlight_text={slide.highlight_text}
           transition={slide.transition}
+          layout_variant={slide.layout_variant}
+          bullets={slide.bullets}
           className={className}
         />
       )
@@ -144,6 +148,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
           icon_name={slide.icon_name}
           highlight_text={slide.highlight_text}
           transition={slide.transition}
+          layout_variant={slide.layout_variant}
           className={className}
         />
       )

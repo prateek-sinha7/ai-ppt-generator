@@ -22,6 +22,7 @@ import structlog
 
 from pydantic import BaseModel, Field
 
+from app.core.generation_mode import GenerationMode
 from app.db.models import ProviderType
 
 
@@ -114,19 +115,50 @@ VISUAL RICHNESS:
 
 CONSULTING STORYTELLING FLOW:
 Title → Executive Summary → Market Context → Problem/Opportunity → Deep Analysis → Evidence/Data → Strategic Options → Recommendations → Implementation Roadmap → Financial Impact → Risk Assessment → Conclusion/Call to Action
+
+SLIDE DESIGN RULES (MANDATORY):
+- NEVER use accent lines under titles — these are a hallmark of AI-generated slides; use whitespace or background color instead
+- One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent. Never give all colors equal weight
+- Dark backgrounds for title + conclusion slides, light for content ("sandwich" structure)
+- Pick ONE distinctive visual motif and repeat it across every slide (e.g. left-bar borders, icon circles, stat callouts)
+- Every slide needs a visual element — text-only slides are forgettable. Always include icons, charts, or shapes
+- Don't center body text — left-align paragraphs and lists; center only titles
+- Don't repeat the same layout — vary columns, cards, and callouts across slides
+
+LAYOUT VARIANTS — Choose a layout_variant for each slide to create visual variety:
+Content slides: "numbered-cards" (default), "icon-grid", "two-column-text", "stat-callouts", "timeline", "quote-highlight"
+Chart slides: "chart-right" (default), "chart-full", "chart-top", "chart-with-kpi"
+Table slides: "table-full" (default), "table-with-insights", "table-highlight"
+Comparison slides: "two-column" (default), "pros-cons", "before-after", "icon-rows"
+
+Rules:
+- Include "layout_variant" field in each slide's content object
+- Vary layouts across slides — never use the same layout_variant for two consecutive slides of the same type
+- Choose the variant that best fits the content: stat-callouts for data-heavy, icon-grid for feature lists, timeline for sequential processes, quote-highlight for key takeaways, icon-rows for comparison items that each deserve their own icon
+
+RICH ITEM FORMAT — For icon-grid (content) and icon-rows (comparison) variants, use objects instead of plain strings:
+  "bullets": [{ "icon": "Zap", "title": "Bold Heading", "description": "Optional detail text" }]
+  OR for comparison columns:
+  "items": [{ "icon": "Building", "title": "Banking Client Modernization", "description": "Full-stack migration to cloud" }]
+Choose an appropriate icon_name for each item from the available icon list above.
 </enterprise_standards>
 
 <instructions>
-Follow the presentation plan EXACTLY:
-- Generate the exact number of slides specified
-- Use the exact slide types specified for each position
-- Maintain the section structure provided
+Use the presentation plan as a GUIDE, not a rigid template:
+- The plan suggests slide count and types — you may adjust based on what the topic actually needs
+- If the topic doesn't warrant charts (e.g. team introductions, process overviews), use content slides instead
+- If comparisons aren't relevant, skip them — don't force artificial comparisons
+- If the topic is qualitative, you don't need KPI metric slides
+- Choose slide types that SERVE the content. Not every presentation needs charts, tables, comparisons, or metrics
+- Stay within the suggested slide count range (±2 slides is fine)
 
-CRITICAL DATA REQUIREMENTS:
-- chart slides: chart_data MUST be array of {label, value} with REAL industry numbers from data_enrichment. NEVER use "Category 1, 2, 3"
+CRITICAL DATA REQUIREMENTS (only when using that slide type):
+- chart slides: chart_data MUST be array of {label, value} with REAL industry numbers. NEVER use "Category 1, 2, 3"
 - table slides: table_data MUST have real headers and rows with actual data values
-- comparison slides: **MANDATORY** comparison_data MUST have left_column and right_column objects, each with heading (string) and bullets (array of 4-5 strings). DO NOT generate comparison slides without this complete structure. This is the MOST IMPORTANT requirement.
+- comparison slides: comparison_data MUST have left_column and right_column objects, each with heading and bullets/items
 - metric slides: metric_value, metric_label, metric_trend MUST all be populated
+
+If a slide type doesn't fit the topic, use "content" type instead — it's always appropriate.
 
 Return ONLY valid JSON. No markdown, no explanation.
 </instructions>""",
@@ -321,7 +353,32 @@ VISUAL RICHNESS:
 - Every slide MUST have highlight_text — a single bold insight
 - Every slide MUST have speaker_notes (3-4 sentences)
 
-Follow the presentation plan EXACTLY — exact slide count, types, and sections.
+SLIDE DESIGN RULES (MANDATORY):
+- NEVER use accent lines under titles — these are a hallmark of AI-generated slides
+- One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent
+- Dark backgrounds for title + conclusion slides, light for content (sandwich structure)
+- Pick ONE distinctive visual motif and repeat it across every slide
+- Every slide needs a visual element — text-only slides are forgettable
+- Don't center body text — left-align paragraphs and lists; center only titles
+- Don't repeat the same layout — vary columns, cards, and callouts across slides
+
+LAYOUT VARIANTS — Choose a layout_variant for each slide to create visual variety:
+Content slides: "numbered-cards" (default), "icon-grid", "two-column-text", "stat-callouts", "timeline", "quote-highlight"
+Chart slides: "chart-right" (default), "chart-full", "chart-top", "chart-with-kpi"
+Table slides: "table-full" (default), "table-with-insights", "table-highlight"
+Comparison slides: "two-column" (default), "pros-cons", "before-after", "icon-rows"
+
+Rules:
+- Include "layout_variant" field in each slide's content object
+- Vary layouts across slides — never use the same layout_variant for two consecutive slides of the same type
+- Choose the variant that best fits the content: stat-callouts for data-heavy, icon-grid for feature lists, timeline for sequential processes, quote-highlight for key takeaways, icon-rows for comparison items with individual icons
+
+RICH ITEM FORMAT — For icon-grid and icon-rows variants, use objects instead of plain strings:
+  "bullets": [{ "icon": "Zap", "title": "Bold Heading", "description": "Optional detail" }]
+  For comparison icon-rows: "items": [{ "icon": "Building", "title": "Heading", "description": "Detail" }]
+
+Follow the presentation plan as a guide — adjust slide types based on what the topic needs.
+If charts/comparisons/metrics aren't relevant, use content slides instead.
 Return ONLY valid JSON. No markdown, no explanation.""",
     user_prompt_template="""Topic: {topic}
 
@@ -470,6 +527,23 @@ CHART VARIETY: Use "line" for trends, "pie" for market share, "bar" for comparis
 
 EVERY slide needs: speaker_notes (3-4 sentences), highlight_text, icon_name (for content/metric slides).
 
+SLIDE DESIGN RULES:
+- NEVER use accent lines under titles
+- One color dominates (60-70%), 1-2 supporting tones, one sharp accent
+- Dark backgrounds for title + conclusion, light for content (sandwich)
+- ONE visual motif repeated across every slide
+- Every slide needs a visual element — no text-only slides
+- Left-align body text, center only titles
+- Vary layouts across slides — no consecutive identical layouts
+
+LAYOUT VARIANTS — Include "layout_variant" in each slide:
+Content: "numbered-cards", "icon-grid", "two-column-text", "stat-callouts", "timeline", "quote-highlight"
+Chart: "chart-right", "chart-full", "chart-top", "chart-with-kpi"
+Table: "table-full", "table-with-insights", "table-highlight"
+Comparison: "two-column", "pros-cons", "before-after", "icon-rows"
+Vary layouts — never repeat the same variant for consecutive same-type slides.
+For icon-grid/icon-rows: use objects {icon, title, description} instead of plain strings.
+
 Return ONLY valid JSON.""",
     user_prompt_template="""Topic: {topic}
 Industry: {industry}
@@ -558,12 +632,437 @@ JSON:
 )
 
 
+# ---------------------------------------------------------------------------
+# Code-mode template (provider-agnostic, pptxgenjs code generation)
+# ---------------------------------------------------------------------------
+
+CODE_TEMPLATE = PromptTemplate(
+    provider_type=ProviderType.claude,  # placeholder — used for all providers in code mode
+    system_prompt="""You are a senior presentation designer generating pptxgenjs JavaScript code for each slide.
+
+For every slide you MUST produce a `render_code` string — a JavaScript function body that calls pptxgenjs APIs on the provided `slide` object.
+
+<pptxgenjs_api_reference>
+TEXT
+  slide.addText('Hello', { x:0.5, y:0.5, w:9, h:1, fontSize:24, bold:true, color:'FFFFFF', fontFace:'Arial', align:'left', valign:'middle', lineSpacingMultiple:1.1 });
+  Rich text array (multiple styles in one call):
+  slide.addText([ { text:'Bold ', options:{ bold:true, fontSize:18 } }, { text:'Normal', options:{ fontSize:18 } } ], { x:0.5, y:1, w:9, h:0.5, paraSpaceAfter:6 });
+  Use { breakLine:true } between array items to force a new line.
+  Bullet lists: { bullet:true } or { bullet:{ type:'number' } } in the options of each text run.
+
+SHAPES
+  slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:10, h:0.5, fill:{ color:'1A2332' } });
+  slide.addShape(pres.ShapeType.roundRect, { x:1, y:1, w:3, h:2, rectRadius:0.2, fill:{ color:'2D8B8B' }, shadow:{ type:'outer', blur:4, offset:2, color:'000000', opacity:0.3 } });
+  Available shapes: rect, roundRect, ellipse, line, triangle, rtTriangle, diamond, hexagon, chevron, star5, cloud, arc, plus, noSmoking.
+
+CHARTS
+  slide.addChart(pres.ChartType.bar, [{ name:'Series', labels:['A','B','C'], values:[10,20,30] }], { x:0.5, y:1.5, w:5, h:3, showValue:true, catAxisOrientation:'minMax', valAxisOrientation:'minMax', showLegend:true });
+  Chart types: bar, bar3D, line, pie, doughnut, area, scatter, bubble, radar.
+  Multiple series: pass array of { name, labels, values } objects.
+
+TABLES
+  const rows = [ [{ text:'Header', options:{ bold:true, fill:{ color:'1A2332' }, color:'FFFFFF' } }, ...], ['Cell', 'Cell'] ];
+  slide.addTable(rows, { x:0.5, y:1.5, w:9, h:3, border:{ pt:0.5, color:'CCCCCC' }, colW:[3,3,3], fontSize:11, autoPage:false });
+
+IMAGES
+  slide.addImage({ data:'data:image/png;base64,...', x:1, y:1, w:2, h:2 });
+  For icons: const img = await iconToBase64('FaCheckCircle', theme.primary); if (img) slide.addImage({ data:img, x:1, y:1, w:0.5, h:0.5 });
+
+BACKGROUNDS
+  slide.background = { color: theme.bgDark };
+  slide.background = { color: theme.bg };
+
+SHADOWS
+  Add to any element options: shadow:{ type:'outer', blur:3, offset:2, color:'000000', opacity:0.25 }
+</pptxgenjs_api_reference>
+
+<common_pitfalls>
+- Hex colors: NEVER use '#' prefix. Correct: 'FFFFFF'. Wrong: '#FFFFFF'.
+- Option objects: NEVER reuse the same options object across multiple addText/addShape calls — always create a new object literal for each call.
+- Letter spacing: use `charSpacing` (in points), NOT `letterSpacing`.
+- Line breaks in rich text arrays: insert { text:'', options:{ breakLine:true } } between items.
+- Bullets: use { bullet:true } in options, NOT unicode bullet characters.
+- Coordinates are in inches. Slide is 10" wide × 5.63" tall.
+</common_pitfalls>
+
+<theme_and_fonts>
+Available in sandbox context:
+  theme.primary, theme.secondary, theme.accent, theme.bg, theme.bgDark,
+  theme.surface, theme.text, theme.muted, theme.border, theme.highlight,
+  theme.chartColors (array of hex strings)
+  fonts.fontHeader, fonts.fontBody
+
+iconToBase64(iconName: string, hexColor: string, size?: number) → Promise<string|null>
+  Available icon libraries: fa (FontAwesome), md (Material Design), hi (Heroicons), bi (Bootstrap Icons).
+  Example names: 'FaCheckCircle', 'MdTrendingUp', 'HiLightBulb', 'BiBarChart'.
+  Returns base64 data URI or null if icon not found.
+</theme_and_fonts>
+
+<design_rules>
+- NEVER use accent lines under titles — use whitespace or background color instead.
+- One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent. Never give all colors equal weight.
+- Dark backgrounds for title + conclusion slides, light for content ("dark/light sandwich" structure).
+- Pick ONE distinctive visual motif and repeat it across every slide (e.g. left-bar borders, icon circles, stat callout cards).
+- Every slide needs a visual element — text-only slides are forgettable. Always include icons, shapes, or charts.
+- Left-align body text; center only titles.
+- Vary layouts across slides — no two consecutive slides should look identical.
+</design_rules>
+
+<instructions>
+Use the presentation plan as a GUIDE. Adjust slide types based on what the topic actually needs.
+Write render_code that is self-contained per slide. Each render_code string is executed independently with (slide, pres, theme, fonts, themes, iconToBase64) in scope.
+Return ONLY valid JSON. No markdown, no explanation.
+</instructions>""",
+    user_prompt_template="""Topic: {topic}
+
+Industry: {industry}
+
+Research Findings:
+{research_findings}
+
+Presentation Plan:
+{presentation_plan}
+
+Data Enrichment:
+{data_enrichment}
+
+Generate a COMPLETE, INFORMATION-DENSE enterprise presentation. Every slide must have detailed render_code with precise positioning and styling. Return valid JSON only.""",
+    few_shot_examples=[],
+    json_schema_instructions="""
+Return JSON with this exact structure:
+
+{
+  "schema_version": "1.0.0",
+  "total_slides": number,
+  "slides": [
+    {
+      "slide_id": "1",
+      "slide_number": 1,
+      "type": "title",
+      "title": "Slide Title",
+      "speaker_notes": "3-4 sentences of presenter context and talking points.",
+      "render_code": "slide.background = { color: theme.bgDark };\\nslide.addText('Title', { x: 0.5, y: 1.5, w: 9, h: 1.5, fontSize: 40, bold: true, color: theme.text, fontFace: fonts.fontHeader });"
+    },
+    {
+      "slide_id": "2",
+      "slide_number": 2,
+      "type": "content",
+      "title": "Key Findings",
+      "speaker_notes": "Walk through each finding with supporting evidence.",
+      "render_code": "slide.background = { color: theme.bg };\\nslide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.15, h: 5.63, fill: { color: theme.primary } });\\nslide.addText('Key Findings', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 28, bold: true, color: theme.primary, fontFace: fonts.fontHeader });\\nslide.addText([{ text: 'Market grew 34% YoY to $2.4T', options: { bullet: true, fontSize: 16, color: theme.text } }, { text: '', options: { breakLine: true } }, { text: 'Top 3 players control 67% share', options: { bullet: true, fontSize: 16, color: theme.text } }], { x: 0.5, y: 1.2, w: 8.5, h: 3, fontFace: fonts.fontBody, paraSpaceAfter: 8 });"
+    }
+  ]
+}
+
+RULES:
+- Every slide MUST have slide_id, slide_number, type, title, speaker_notes, and render_code.
+- render_code is a JavaScript function body string — use \\n for newlines inside the JSON string.
+- render_code must call at least one pptxgenjs API (slide.addText, slide.addShape, slide.addChart, slide.addImage, slide.addTable, or slide.background assignment).
+- Use theme.* and fonts.* — NEVER hardcode hex colors.
+- speaker_notes: 3-4 sentences with presenter context and talking points.
+""",
+    optimization_notes="Code mode: provider-agnostic template for pptxgenjs code generation. Works with any capable LLM."
+)
+
+
+# ---------------------------------------------------------------------------
+# Hybrid-mode template (JSON structure + optional render_code for complex slides)
+# ---------------------------------------------------------------------------
+
+HYBRID_TEMPLATE = PromptTemplate(
+    provider_type=ProviderType.groq,  # placeholder — used for all providers in hybrid mode
+    system_prompt="""You are a senior strategy consultant and presentation designer creating board-level, enterprise-grade slide decks.
+
+You generate a JSON presentation where MOST slides use standard Slide_JSON fields, but COMPLEX slides may include an optional `render_code` field containing pptxgenjs JavaScript code for custom rendering.
+
+WHEN TO USE render_code (include it on the slide):
+- Comparison layouts with side-by-side cards or columns
+- Multi-chart slides or dashboard-style layouts
+- Complex infographics with precise element positioning
+- Slides that need overlapping shapes, custom callout boxes, or icon grids
+
+WHEN TO OMIT render_code (use standard JSON fields only):
+- Title slides (type: "title")
+- Simple content slides with bullets (type: "content")
+- Simple single-chart slides (type: "chart")
+- Simple table slides (type: "table")
+- Metric/KPI slides (type: "metric")
+
+When you include render_code, it is a JavaScript function body string that calls pptxgenjs APIs.
+Available in scope: slide, pres, theme (theme.primary, theme.secondary, theme.accent, theme.bg, theme.bgDark, theme.surface, theme.text, theme.muted, theme.chartColors), fonts (fonts.fontHeader, fonts.fontBody), themes, iconToBase64(name, color).
+Hex colors: NO '#' prefix. Use charSpacing not letterSpacing. Use { breakLine:true } between rich text items. Use { bullet:true } not unicode bullets.
+
+CONTENT DENSITY REQUIREMENTS:
+- Titles: 6-10 words, action-oriented
+- Bullets: 2-4 per content slide, each with specific data points
+- Charts: 5-8 data points with real industry values
+- Tables: 4-6 rows, 3-5 columns with real comparative data
+- Every slide MUST have speaker_notes (3-4 sentences)
+- Every content/metric slide MUST have icon_name and highlight_text
+
+SLIDE DESIGN RULES:
+- NEVER use accent lines under titles
+- One color dominates (60-70%), 1-2 supporting tones, one sharp accent
+- Dark backgrounds for title + conclusion, light for content (sandwich structure)
+- ONE visual motif repeated across every slide
+- Vary layouts across slides
+
+Return ONLY valid JSON. No markdown, no explanation.""",
+    user_prompt_template="""Topic: {topic}
+
+Industry: {industry}
+
+Research Findings:
+{research_findings}
+
+Presentation Plan:
+{presentation_plan}
+
+Data Enrichment:
+{data_enrichment}
+
+Generate a COMPLETE, INFORMATION-DENSE enterprise presentation. Use render_code ONLY for complex slides (comparisons, multi-chart, infographics). Use standard JSON for simple slides. Return valid JSON only.""",
+    few_shot_examples=[],
+    json_schema_instructions="""
+Return JSON with this structure. Slides WITHOUT render_code use standard fields. Slides WITH render_code include the code string.
+
+{
+  "schema_version": "1.0.0",
+  "total_slides": number,
+  "slides": [
+    {
+      "slide_id": "1",
+      "slide_number": 1,
+      "type": "title",
+      "title": "Action-Oriented Title",
+      "content": {
+        "subtitle": "Strategic Analysis — Q2 2026",
+        "bullets": ["$2.4T market", "45% CAGR", "68 countries"]
+      },
+      "visual_hint": "centered",
+      "speaker_notes": "Opening remarks. 3-4 sentences."
+    },
+    {
+      "slide_id": "5",
+      "slide_number": 5,
+      "type": "comparison",
+      "title": "Build vs Buy Analysis",
+      "speaker_notes": "Frame as strategic choice. 3-4 sentences.",
+      "content": {
+        "comparison_data": {
+          "left_column": { "heading": "Build", "bullets": ["18-24 month timeline", "$45-65M upfront"] },
+          "right_column": { "heading": "Buy", "bullets": ["6-9 month deployment", "$4-7M annually"] }
+        }
+      },
+      "render_code": "slide.background = { color: theme.bg };\\nslide.addText('Build vs Buy', { x:0.5, y:0.3, w:9, h:0.6, fontSize:28, bold:true, color:theme.primary, fontFace:fonts.fontHeader });\\n// ... custom two-card layout with icons"
+    }
+  ]
+}
+
+RULES:
+- title at slide ROOT level, NEVER inside content
+- chart_data: array of {label, value} with REAL numbers
+- chart_type: vary across slides (bar, line, pie, area)
+- EVERY slide needs speaker_notes (3-4 sentences)
+- EVERY content/metric slide needs icon_name and highlight_text
+- render_code is OPTIONAL — only include for complex layouts
+- When render_code is present, it must call at least one pptxgenjs API
+""",
+    optimization_notes="Hybrid mode: standard JSON for simple slides, pptxgenjs code for complex layouts. Balanced approach."
+)
+
+
+# ---------------------------------------------------------------------------
+# Artisan-mode template (full-script pptxgenjs generation)
+# ---------------------------------------------------------------------------
+
+ARTISAN_TEMPLATE = PromptTemplate(
+    provider_type=ProviderType.claude,  # placeholder — used for all providers in artisan mode
+    system_prompt="""You are a world-class presentation designer generating a single, complete pptxgenjs JavaScript script that creates an entire presentation from scratch.
+
+You will receive a `pres` (PptxGenJS Presentation) object. Your script must call `pres.addSlide()` to create each slide and use pptxgenjs API calls for all content. You have FULL creative control: slide creation, colors, layouts, masters, and presentation-level properties.
+
+<pptxgenjs_api_reference>
+PRESENTATION-LEVEL PROPERTIES
+  pres.layout = 'LAYOUT_WIDE';  // 13.33" x 7.5" (default is LAYOUT_16x9: 10" x 5.63")
+  pres.author = 'Author Name';
+  pres.company = 'Company';
+  pres.subject = 'Subject';
+  pres.title = 'Presentation Title';
+
+SLIDE MASTERS (define reusable layouts)
+  pres.defineSlideMaster({
+    title: 'MASTER_TITLE',
+    background: { color: '0D1520' },
+    objects: [
+      { rect: { x: 0, y: 0, w: 0.15, h: '100%', fill: { color: '2D8B8B' } } },
+      { text: { text: 'Footer', options: { x: 0, y: 5.2, w: '100%', h: 0.4, fontSize: 8, color: '94A3B8', align: 'center' } } }
+    ]
+  });
+  const slide = pres.addSlide({ masterName: 'MASTER_TITLE' });
+
+CREATING SLIDES
+  const slide = pres.addSlide();
+  const slide = pres.addSlide({ masterName: 'MASTER_NAME' });
+  slide.number = { x: 9.2, y: 5.2, w: 0.6, h: 0.3, fontSize: 8, color: '94A3B8' };
+
+TEXT
+  slide.addText('Hello', { x: 0.5, y: 0.5, w: 9, h: 1, fontSize: 24, bold: true, color: 'FFFFFF', fontFace: 'Arial', align: 'left', valign: 'middle', lineSpacingMultiple: 1.1 });
+  Rich text array (multiple styles in one call):
+  slide.addText([
+    { text: 'Bold ', options: { bold: true, fontSize: 18 } },
+    { text: 'Normal', options: { fontSize: 18 } }
+  ], { x: 0.5, y: 1, w: 9, h: 0.5, paraSpaceAfter: 6 });
+  Use { breakLine: true } between array items to force a new line.
+  Bullet lists: { bullet: true } or { bullet: { type: 'number' } } in the options of each text run.
+  Subscript/superscript: { subscript: true } or { superscript: true }.
+  Hyperlinks: { hyperlink: { url: 'https://example.com' } }.
+  Text rotation: { rotate: 45 } (degrees).
+  Character spacing: { charSpacing: 2 } (in points).
+  Paragraph spacing: { paraSpaceBefore: 6, paraSpaceAfter: 6 } (in points).
+  Line spacing: { lineSpacingMultiple: 1.2 } or { lineSpacing: 24 } (in points).
+  Text wrapping: { wrap: true } (default) or { shrinkText: true } to auto-shrink.
+
+SHAPES
+  slide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.5, fill: { color: '1A2332' } });
+  slide.addShape(pres.ShapeType.roundRect, { x: 1, y: 1, w: 3, h: 2, rectRadius: 0.2, fill: { color: '2D8B8B' }, shadow: { type: 'outer', blur: 4, offset: 2, color: '000000', opacity: 0.3 } });
+  Available shapes: rect, roundRect, ellipse, line, triangle, rtTriangle, diamond, hexagon, chevron, star5, cloud, arc, plus, noSmoking.
+  Line shapes: { line: { color: 'CCCCCC', width: 1, dashType: 'dash' } }.
+  Shape fill types: solid { fill: { color: 'FF0000' } }, gradient { fill: { type: 'solid', color: 'FF0000' } }, transparency { fill: { color: 'FF0000', transparency: 50 } }.
+
+CHARTS
+  slide.addChart(pres.ChartType.bar, [{ name: 'Series', labels: ['A', 'B', 'C'], values: [10, 20, 30] }], { x: 0.5, y: 1.5, w: 5, h: 3, showValue: true, catAxisOrientation: 'minMax', valAxisOrientation: 'minMax', showLegend: true });
+  Chart types: bar, bar3D, line, pie, doughnut, area, scatter, bubble, radar.
+  Multiple series: pass array of { name, labels, values } objects.
+  Chart options: showTitle, titleFontSize, titleColor, showValue, valueFontSize, catAxisLabelColor, catAxisLabelFontSize, valAxisLabelColor, valAxisLabelFontSize, catGridLine, valGridLine, showLegend, legendPos ('b', 't', 'l', 'r'), legendFontSize, chartColors (array of hex strings), barDir ('bar' for horizontal, 'col' for vertical), barGapWidthPct, lineDataSymbol ('none', 'circle', 'square'), lineSmooth, dataLabelPosition ('outEnd', 'inEnd', 'ctr', 'bestFit').
+  Combo charts: slide.addChart(pres.ChartType.bar, data, { secondaryValAxis: true, secondaryCatAxis: false }).
+
+TABLES
+  const rows = [
+    [{ text: 'Header', options: { bold: true, fill: { color: '1A2332' }, color: 'FFFFFF', fontSize: 11 } }, { text: 'Col 2', options: { bold: true, fill: { color: '1A2332' }, color: 'FFFFFF' } }],
+    ['Cell 1', 'Cell 2'],
+    [{ text: 'Styled', options: { color: '2D8B8B', bold: true } }, 'Normal']
+  ];
+  slide.addTable(rows, { x: 0.5, y: 1.5, w: 9, h: 3, border: { pt: 0.5, color: 'CCCCCC' }, colW: [3, 3, 3], fontSize: 11, autoPage: false, rowH: [0.4, 0.35, 0.35] });
+  Table options: colW (array of column widths), rowH (array or single row height), border, fill, fontSize, fontFace, color, valign, align, margin (cell padding in points), autoPage.
+
+IMAGES
+  slide.addImage({ data: 'data:image/png;base64,...', x: 1, y: 1, w: 2, h: 2 });
+  For icons: const img = await iconToBase64('FaCheckCircle', '2D8B8B'); if (img) slide.addImage({ data: img, x: 1, y: 1, w: 0.5, h: 0.5 });
+  Image options: hyperlink, rounding, sizing ({ type: 'contain', w: 2, h: 2 } or { type: 'cover', w: 2, h: 2 }).
+
+BACKGROUNDS
+  slide.background = { color: '0D1520' };
+  slide.background = { data: 'data:image/png;base64,...' };  // image background
+
+SPEAKER NOTES
+  slide.addNotes('Speaker notes text for this slide. Can be multiple sentences.');
+
+SHADOWS (add to any element options)
+  shadow: { type: 'outer', blur: 3, offset: 2, color: '000000', opacity: 0.25 }
+  shadow: { type: 'inner', blur: 2, offset: 1, color: '000000', opacity: 0.15 }
+</pptxgenjs_api_reference>
+
+<common_pitfalls>
+CRITICAL — read these carefully:
+- Hex colors: NEVER use '#' prefix. Correct: 'FFFFFF'. Wrong: '#FFFFFF'.
+- Option objects: NEVER reuse the same options object across multiple addText/addShape calls — always create a new object literal for each call.
+- Letter spacing: use `charSpacing` (in points), NOT `letterSpacing`.
+- Line breaks in rich text arrays: insert { text: '', options: { breakLine: true } } between items.
+- Bullets: use { bullet: true } in options, NOT unicode bullet characters (•, ●, etc.).
+- Coordinates are in inches. Default slide is 10" wide x 5.63" tall (LAYOUT_16x9).
+- addSlide() is on `pres`, not on `slide`. Each slide is created via `pres.addSlide()`.
+- Speaker notes: use `slide.addNotes('...')` — NOT `slide.notes = '...'`.
+- Chart data labels must be strings, values must be numbers.
+- Table rows: each row is an array. Each cell is either a string or { text, options }.
+- Do NOT call pres.writeFile() or pres.write() — the system handles file generation.
+</common_pitfalls>
+
+<theme_and_fonts>
+Available in your sandbox context (all optional — you may choose your own colors):
+  theme.primary, theme.secondary, theme.accent, theme.bg, theme.bgDark,
+  theme.surface, theme.text, theme.muted, theme.border, theme.highlight,
+  theme.chartColors (array of hex strings)
+  fonts.fontHeader, fonts.fontBody
+
+  themes — object with all built-in theme palettes keyed by name (e.g. themes.ocean_depths, themes.midnight_blue).
+  Each palette has the same fields as theme above.
+
+  You are FREE to use theme colors or choose your own hex values. The theme is a suggestion, not a constraint.
+
+iconToBase64(iconName: string, hexColor: string, size?: number) → Promise<string|null>
+  Available icon libraries: fa (FontAwesome), md (Material Design), hi (Heroicons), bi (Bootstrap Icons).
+  Example names: 'FaCheckCircle', 'MdTrendingUp', 'HiLightBulb', 'BiBarChart'.
+  Returns base64 data URI or null if icon not found. Always check for null before using.
+  Usage: const img = await iconToBase64('FaChartBar', '2D8B8B'); if (img) slide.addImage({ data: img, x: 1, y: 1, w: 0.4, h: 0.4 });
+</theme_and_fonts>
+
+<design_rules>
+- NEVER use accent lines under titles — use whitespace or background color instead.
+- One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent. Never give all colors equal weight.
+- Dark backgrounds for title + conclusion slides, light for content ("dark/light sandwich" structure).
+- Pick ONE distinctive visual motif and repeat it across every slide (e.g. left-bar borders, icon circles, stat callout cards, gradient headers).
+- Every slide needs a visual element — text-only slides are forgettable. Always include icons, shapes, or charts.
+- Left-align body text; center only titles.
+- Vary layouts across slides — no two consecutive slides should look identical.
+- Use cross-slide awareness: maintain consistent spacing, color usage, and visual rhythm across all slides.
+- Add speaker notes to EVERY slide via slide.addNotes() — 3-4 sentences with presenter context and talking points.
+</design_rules>
+
+<instructions>
+Use the presentation plan as a GUIDE, not a rigid template. Adjust slide types based on what the topic actually needs.
+Write ONE complete JavaScript script that creates the entire presentation. The script receives `pres` and must call `pres.addSlide()` for each slide.
+Do NOT call pres.writeFile() or pres.write() — the system handles file output.
+Return ONLY valid JSON with the script in the artisan_code field. No markdown, no explanation.
+</instructions>""",
+    user_prompt_template="""Topic: {topic}
+
+Industry: {industry}
+
+Research Findings:
+{research_findings}
+
+Presentation Plan:
+{presentation_plan}
+
+Data Enrichment:
+{data_enrichment}
+
+Generate a COMPLETE, INFORMATION-DENSE enterprise presentation as a single pptxgenjs script. Every slide must be packed with specific data, metrics, and insights. Use pres.addSlide() for each slide and slide.addNotes() for speaker notes on every slide. Return valid JSON only.""",
+    few_shot_examples=[],
+    json_schema_instructions="""
+Return JSON with this exact structure:
+{
+  "artisan_code": "<complete JavaScript function body>"
+}
+
+The artisan_code must:
+- Call pres.addSlide() to create each slide
+- Use pptxgenjs API calls for all content (addText, addShape, addChart, addImage, addTable)
+- Optionally use theme.* for colors (or choose own hex values)
+- Include slide.addNotes() for speaker notes on each slide (3-4 sentences)
+- NOT call pres.writeFile() or pres.write()
+
+Example artisan_code value (abbreviated):
+"// Title slide\\nconst titleSlide = pres.addSlide();\\ntitleSlide.background = { color: '0D1520' };\\ntitleSlide.addText('Market Analysis Q4 2024', {\\n  x: 0.5, y: 1.5, w: 9, h: 1.5,\\n  fontSize: 40, bold: true, color: 'F1FAEE',\\n  fontFace: fonts.fontHeader\\n});\\ntitleSlide.addNotes('Opening slide with key metrics overview...');\\n\\n// Content slide\\nconst contentSlide = pres.addSlide();\\ncontentSlide.background = { color: 'F1FAEE' };\\ncontentSlide.addText('Key Strategic Findings', {\\n  x: 0.5, y: 0.3, w: 9, h: 0.6,\\n  fontSize: 28, bold: true, color: '1A2332',\\n  fontFace: fonts.fontHeader\\n});\\ncontentSlide.addNotes('Walk through each finding with supporting evidence...');"
+""",
+    optimization_notes="Artisan mode: full-script generation for maximum creative control. The LLM creates the entire presentation as one unified script with cross-slide awareness."
+)
+
+
 # Template registry
 PROMPT_TEMPLATES: Dict[ProviderType, PromptTemplate] = {
     ProviderType.claude: CLAUDE_TEMPLATE,
     ProviderType.openai: OPENAI_TEMPLATE,
     ProviderType.groq: GROQ_TEMPLATE,
     ProviderType.local: LOCAL_TEMPLATE,
+}
+
+# Mode-specific template registry (provider-agnostic)
+MODE_TEMPLATES: Dict[GenerationMode, PromptTemplate] = {
+    GenerationMode.ARTISAN: ARTISAN_TEMPLATE,
+    GenerationMode.STUDIO: CODE_TEMPLATE,
+    GenerationMode.CRAFT: HYBRID_TEMPLATE,
 }
 
 
@@ -793,6 +1292,7 @@ Domain Terminology: {', '.join(terminology)}"""
         data_enrichment: Optional[Dict[str, Any]] = None,
         design_spec: Optional[Dict[str, Any]] = None,
         execution_id: str = "",
+        generation_mode: Optional[GenerationMode] = None,
     ) -> OptimizedPrompt:
         """
         Generate optimized prompt for specified provider.
@@ -804,7 +1304,11 @@ Domain Terminology: {', '.join(terminology)}"""
             research_findings: Research agent output
             presentation_plan: Storyboarding agent output
             data_enrichment: Optional data enrichment output
+            design_spec: Optional design specification
             execution_id: Execution ID for tracking
+            generation_mode: Generation mode (artisan/studio/craft/express). When artisan,
+                studio, or craft, a mode-specific template is used regardless of
+                provider. When express or None, the provider-specific template is used.
             
         Returns:
             OptimizedPrompt ready for provider
@@ -814,10 +1318,14 @@ Domain Terminology: {', '.join(terminology)}"""
             provider_type=provider_type.value,
             topic=topic[:100],
             execution_id=execution_id,
+            generation_mode=generation_mode.value if generation_mode else None,
         )
         
-        # Get provider template
-        template = PROMPT_TEMPLATES.get(provider_type, LOCAL_TEMPLATE)
+        # Select template: mode-specific for code/hybrid, provider-specific for json/None
+        if generation_mode and generation_mode in MODE_TEMPLATES:
+            template = MODE_TEMPLATES[generation_mode]
+        else:
+            template = PROMPT_TEMPLATES.get(provider_type, LOCAL_TEMPLATE)
         
         # Get token limits
         limits = PROVIDER_TOKEN_LIMITS.get(provider_type, PROVIDER_TOKEN_LIMITS[ProviderType.local])
@@ -896,6 +1404,7 @@ Domain Terminology: {', '.join(terminology)}"""
                 "topic": topic,
                 "industry": industry,
                 "execution_id": execution_id,
+                "generation_mode": generation_mode.value if generation_mode else "express",
                 "template_optimization_notes": template.optimization_notes,
                 "truncated": total_tokens > recommended_tokens,
             },
@@ -922,6 +1431,7 @@ Domain Terminology: {', '.join(terminology)}"""
         presentation_plan: Dict[str, Any],
         data_enrichment: Optional[Dict[str, Any]] = None,
         execution_id: str = "",
+        generation_mode: Optional[GenerationMode] = None,
     ) -> OptimizedPrompt:
         """
         Regenerate prompt for failover to different provider.
@@ -935,6 +1445,7 @@ Domain Terminology: {', '.join(terminology)}"""
             presentation_plan: Storyboarding agent output
             data_enrichment: Optional data enrichment output
             execution_id: Execution ID for tracking
+            generation_mode: Generation mode (artisan/studio/craft/express) to pass through
             
         Returns:
             New OptimizedPrompt for failover provider
@@ -944,6 +1455,7 @@ Domain Terminology: {', '.join(terminology)}"""
             original_provider=original_prompt.provider_type.value,
             new_provider=new_provider_type.value,
             execution_id=execution_id,
+            generation_mode=generation_mode.value if generation_mode else None,
         )
         
         # Generate new prompt for failover provider
@@ -955,6 +1467,7 @@ Domain Terminology: {', '.join(terminology)}"""
             presentation_plan=presentation_plan,
             data_enrichment=data_enrichment,
             execution_id=execution_id,
+            generation_mode=generation_mode,
         )
     
     def validate_token_limit(

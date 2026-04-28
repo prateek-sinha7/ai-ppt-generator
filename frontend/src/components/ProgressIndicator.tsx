@@ -1,6 +1,8 @@
 import { CheckCircle, Loader2, XCircle, Clock, Zap } from 'lucide-react'
 import { SSEEvent } from '../hooks/useSSEStream'
 
+type GenerationMode = 'code' | 'hybrid' | 'json'
+
 interface ProgressIndicatorProps {
   events: SSEEvent[]
   isConnected: boolean
@@ -73,7 +75,32 @@ const AGENT_PIPELINE: { name: string; displayName: string; description: string }
     displayName: 'Quality Scoring',
     description: 'Scoring presentation quality & feedback',
   },
+  {
+    name: 'visual_qa',
+    displayName: 'Visual QA',
+    description: 'Inspecting slides for visual defects',
+  },
 ]
+
+// Mode-specific description overrides for Content Generation and Validation steps
+const MODE_DESCRIPTIONS: Record<GenerationMode, Record<string, string>> = {
+  code: {
+    llm_provider: 'Generating pptxgenjs slide code with AI',
+    validation: 'Validating generated code structure',
+  },
+  hybrid: {
+    llm_provider: 'Generating slide content and code snippets',
+    validation: 'Validating JSON structure and code snippets',
+  },
+  json: {},
+}
+
+// Badge labels and colors per generation mode
+const MODE_BADGE: Record<GenerationMode, { label: string; className: string }> = {
+  code: { label: 'Code Mode', className: 'bg-purple-500/20 text-purple-200 border-purple-400/30' },
+  hybrid: { label: 'Hybrid Mode', className: 'bg-amber-500/20 text-amber-200 border-amber-400/30' },
+  json: { label: 'JSON Mode', className: 'bg-blue-500/20 text-blue-200 border-blue-400/30' },
+}
 
 // Synthetic step appended after all agents complete
 const PREVIEW_STEP_NAME = '__preview_render__'
@@ -83,7 +110,26 @@ function formatElapsed(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
+/**
+ * Extract generation_mode from the first agent_start SSE event that carries it.
+ */
+function extractGenerationMode(events: SSEEvent[]): GenerationMode | null {
+  for (const e of events) {
+    if (e.type === 'agent_start' && e.data.generation_mode) {
+      const mode = e.data.generation_mode as string
+      if (mode === 'code' || mode === 'hybrid' || mode === 'json') {
+        return mode
+      }
+    }
+  }
+  return null
+}
+
 export default function ProgressIndicator({ events, isConnected, previewRendering = false, previewReady = false, previewElapsedMs }: ProgressIndicatorProps) {
+  // Detect generation mode from SSE events
+  const generationMode = extractGenerationMode(events)
+  const modeOverrides = generationMode ? MODE_DESCRIPTIONS[generationMode] : {}
+
   // Track start times locally using event timestamps
   const agentStartTimes: Record<string, number> = {}
   const agentElapsed: Record<string, number> = {}
@@ -108,16 +154,20 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
       (e) => e.type === 'error' && e.data.failed_agent === agent.name
     )
 
-    if (errorEvent) return { ...agent, status: 'error' as const }
+    // Apply mode-specific description override if available
+    const description = modeOverrides[agent.name] ?? agent.description
+
+    if (errorEvent) return { ...agent, description, status: 'error' as const }
     if (completeEvent) {
       return {
         ...agent,
+        description,
         status: 'completed' as const,
         elapsedMs: completeEvent.data.elapsed_ms,
       }
     }
-    if (startEvent) return { ...agent, status: 'running' as const }
-    return { ...agent, status: 'pending' as const }
+    if (startEvent) return { ...agent, description, status: 'running' as const }
+    return { ...agent, description, status: 'pending' as const }
   })
 
   // Synthetic "Rendering Preview" step — appended after all pipeline agents
@@ -149,11 +199,14 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
   const qualityEvent = events.find((e) => e.type === 'quality_score')
   const qualityScore = qualityEvent?.data?.composite_score
 
+  // Badge info for the active generation mode
+  const badge = generationMode ? MODE_BADGE[generationMode] : null
+
   return (
     <div className="w-full max-w-3xl mx-auto p-8">
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6 text-white">
+        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 px-8 py-6 text-white">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               {hasError ? (
@@ -172,6 +225,11 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
                   ? 'Rendering Preview…'
                   : 'Generating Presentation'}
               </h2>
+              {badge && (
+                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${badge.className}`}>
+                  {badge.label}
+                </span>
+              )}
             </div>
             <div className="text-right">
               <span className="text-2xl font-bold">{progressPercent}%</span>
@@ -182,13 +240,20 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
           </div>
 
           {/* Progress bar */}
-          <div className="w-full bg-blue-800 rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-white/10 rounded-full h-2.5 overflow-hidden">
             <div
-              className={`h-2.5 rounded-full transition-all duration-700 ease-out ${
-                hasError ? 'bg-red-400' : 'bg-green-400'
+              className={`h-2.5 rounded-full transition-all duration-700 ease-out relative overflow-hidden ${
+                hasError ? 'bg-red-400' : 'bg-emerald-400'
               }`}
               style={{ width: `${progressPercent}%` }}
-            />
+            >
+              {!hasError && progressPercent < 100 && (
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.5s_infinite]"
+                  style={{ backgroundSize: '200% 100%' }}
+                />
+              )}
+            </div>
           </div>
 
           {/* Status line */}
@@ -231,18 +296,27 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
 
         {/* Agent list */}
         <div className="p-6 space-y-2">
+          <style>{`
+            @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+            @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+          `}</style>
           {allStatuses.map((agent, index) => (
             <div
               key={agent.name}
               className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-300 ${
                 agent.status === 'running'
-                  ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                  ? 'bg-slate-50 border border-slate-200 shadow-sm'
                   : agent.status === 'completed'
                   ? 'bg-gray-50'
                   : agent.status === 'error'
                   ? 'bg-red-50 border border-red-200'
-                  : 'opacity-50'
+                  : 'opacity-40'
               }`}
+              style={agent.status === 'completed' ? {
+                animation: `slideIn 0.3s ease-out`,
+                animationDelay: `${index * 0.05}s`,
+                animationFillMode: 'both',
+              } : undefined}
             >
               {/* Step number / icon */}
               <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
@@ -250,7 +324,7 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
                   <CheckCircle className="w-6 h-6 text-green-500" />
                 )}
                 {agent.status === 'running' && (
-                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                  <Loader2 className="w-6 h-6 text-slate-600 animate-spin" />
                 )}
                 {agent.status === 'error' && (
                   <XCircle className="w-6 h-6 text-red-500" />
@@ -270,7 +344,7 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
                       agent.status === 'completed'
                         ? 'text-gray-800'
                         : agent.status === 'running'
-                        ? 'text-blue-700'
+                        ? 'text-slate-700'
                         : agent.status === 'error'
                         ? 'text-red-700'
                         : 'text-gray-400'
@@ -279,7 +353,7 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
                     {agent.displayName}
                   </p>
                   {agent.status === 'running' && (
-                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium animate-pulse">
+                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium animate-pulse">
                       Running
                     </span>
                   )}
@@ -301,7 +375,7 @@ export default function ProgressIndicator({ events, isConnected, previewRenderin
                 </div>
               )}
               {agent.status === 'running' && (
-                <div className="flex-shrink-0 text-xs text-blue-500 animate-pulse">
+                <div className="flex-shrink-0 text-xs text-slate-500 animate-pulse">
                   In progress...
                 </div>
               )}

@@ -18,6 +18,7 @@ interface ChartSlideProps {
   highlight_text?: string
   transition?: string
   className?: string
+  layout_variant?: string
 }
 
 const CustomTooltip = ({ active, payload, label, colors }: any) => {
@@ -47,9 +48,12 @@ export const ChartSlide: React.FC<ChartSlideProps> = ({
   highlight_text,
   transition = 'fade',
   className = '',
+  layout_variant,
 }) => {
   const transitionClass = `slide-transition-${transition}`
   const chartColors = colors.chartColors
+
+  const variant = layout_variant || 'chart-right'
 
   const renderChart = () => {
     switch (chart_type) {
@@ -110,6 +114,126 @@ export const ChartSlide: React.FC<ChartSlideProps> = ({
     }
   }
 
+  const renderInsightsPanel = () => (
+    <div className="flex flex-col justify-center gap-1.5 py-2 px-3 overflow-hidden" style={{ width: '38%' }}>
+      <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: colors.muted }}>
+        Data Insights
+      </div>
+      {chart_data.slice(0, 4).map((d, i) => (
+        <div
+          key={i}
+          className="flex items-stretch rounded overflow-hidden"
+          style={{ backgroundColor: '#F8FAFC', border: '0.5px solid #E2E8F0', minHeight: '1.8rem' }}
+        >
+          <div style={{ width: '4px', backgroundColor: colors.accent, flexShrink: 0 }} />
+          <span className="flex items-center px-2 text-xs leading-snug" style={{ color: colors.text }}>
+            <strong style={{ color: colors.primary, marginRight: '4px' }}>{d.label}:</strong>
+            {d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+          </span>
+        </div>
+      ))}
+      {highlight_text && (
+        <div
+          className="mt-1 flex items-center justify-center text-center rounded px-2 py-1.5"
+          style={{ backgroundColor: colors.secondary, boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }}
+        >
+          <span className="font-bold text-xs" style={{ color: '#FFFFFF' }}>{highlight_text}</span>
+        </div>
+      )}
+    </div>
+  )
+
+  const renderBody = () => {
+    switch (variant) {
+      case 'chart-full':
+        return (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 p-3">
+              {renderChart()}
+            </div>
+            {highlight_text && (
+              <div
+                className="flex-shrink-0 flex items-center justify-center text-center px-4 py-1.5"
+                style={{ backgroundColor: colors.secondary, boxShadow: '0 -2px 6px rgba(0,0,0,0.1)' }}
+              >
+                <span className="font-bold text-xs" style={{ color: '#FFFFFF' }}>{highlight_text}</span>
+              </div>
+            )}
+          </div>
+        )
+
+      case 'chart-top':
+        return (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Chart on top */}
+            <div className="flex-1 p-3" style={{ minHeight: '55%' }}>
+              {renderChart()}
+            </div>
+            {/* Bullets below */}
+            <div className="flex-shrink-0 flex gap-2 px-3 pb-2 overflow-hidden">
+              {chart_data.slice(0, 4).map((d, i) => (
+                <div
+                  key={i}
+                  className="flex-1 flex items-stretch rounded overflow-hidden"
+                  style={{ backgroundColor: '#F8FAFC', border: '0.5px solid #E2E8F0', minHeight: '1.6rem' }}
+                >
+                  <div style={{ width: '3px', backgroundColor: chartColors[i % chartColors.length], flexShrink: 0 }} />
+                  <span className="flex items-center px-2 text-xs leading-snug" style={{ color: colors.text }}>
+                    <strong style={{ color: colors.primary, marginRight: '4px' }}>{d.label}:</strong>
+                    {d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+
+      case 'chart-with-kpi': {
+        // Show a large KPI number alongside the chart
+        const maxItem = chart_data.reduce((max, d) => d.value > max.value ? d : max, chart_data[0])
+        return (
+          <div className="flex-1 flex overflow-hidden">
+            {/* KPI panel */}
+            <div className="flex flex-col items-center justify-center px-4" style={{ width: '30%' }}>
+              <span
+                className="font-bold"
+                style={{ fontSize: '2rem', color: colors.primary, lineHeight: 1.1 }}
+              >
+                {maxItem?.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              </span>
+              <span className="text-xs mt-1 text-center" style={{ color: colors.muted }}>
+                {maxItem?.label}
+              </span>
+              {highlight_text && (
+                <div
+                  className="mt-2 rounded px-2 py-1 text-center"
+                  style={{ backgroundColor: colors.accent }}
+                >
+                  <span className="font-bold text-xs" style={{ color: '#FFFFFF' }}>{highlight_text}</span>
+                </div>
+              )}
+            </div>
+            {/* Chart */}
+            <div className="flex-1 p-3">
+              {renderChart()}
+            </div>
+          </div>
+        )
+      }
+
+      // Default: chart-right (existing behavior)
+      default:
+        return (
+          <div className="flex-1 flex overflow-hidden">
+            {renderInsightsPanel()}
+            <div className="flex-1 p-3">
+              {renderChart()}
+            </div>
+          </div>
+        )
+    }
+  }
+
   return (
     <div
       className={`slide-container ${transitionClass} ${className} relative flex flex-col overflow-hidden`}
@@ -126,44 +250,7 @@ export const ChartSlide: React.FC<ChartSlideProps> = ({
       </div>
       <div style={{ height: '1%', backgroundColor: colors.accent, flexShrink: 0 }} />
 
-      {/* Body: left bullets + right chart */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left panel — accent-bordered bullet cards */}
-        <div className="flex flex-col justify-center gap-1.5 py-2 px-3 overflow-hidden" style={{ width: '38%' }}>
-          {/* Placeholder stats if no bullets */}
-          <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: colors.muted }}>
-            Data Insights
-          </div>
-          {chart_data.slice(0, 4).map((d, i) => (
-            <div
-              key={i}
-              className="flex items-stretch rounded overflow-hidden"
-              style={{ backgroundColor: '#F8FAFC', border: '0.5px solid #E2E8F0', minHeight: '1.8rem' }}
-            >
-              <div style={{ width: '4px', backgroundColor: colors.accent, flexShrink: 0 }} />
-              <span className="flex items-center px-2 text-xs leading-snug" style={{ color: colors.text }}>
-                <strong style={{ color: colors.primary, marginRight: '4px' }}>{d.label}:</strong>
-                {d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-              </span>
-            </div>
-          ))}
-
-          {/* Insight callout */}
-          {highlight_text && (
-            <div
-              className="mt-1 flex items-center justify-center text-center rounded px-2 py-1.5"
-              style={{ backgroundColor: colors.secondary, boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }}
-            >
-              <span className="font-bold text-xs" style={{ color: '#FFFFFF' }}>{highlight_text}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Right: chart */}
-        <div className="flex-1 p-3">
-          {renderChart()}
-        </div>
-      </div>
+      {renderBody()}
     </div>
   )
 }

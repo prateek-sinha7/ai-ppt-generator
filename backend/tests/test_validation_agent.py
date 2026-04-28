@@ -637,7 +637,7 @@ class TestLayoutInstructionTokenValidation:
 
     def test_invalid_theme_name_produces_warning(self):
         agent = ValidationAgent()
-        data = self._slide_with_instructions({"theme": "corporate-blue"})
+        data = self._slide_with_instructions({"theme": "Ocean Depths-blue"})
         errors = agent.validate_layout_instructions(data)
         assert len(errors) == 1
         assert errors[0].severity == "warning"
@@ -702,9 +702,9 @@ class TestLayoutInstructionTokenValidation:
         assert "8" in VALID_SPACING_TOKENS   # 32px
         assert "slide-title" in VALID_TYPOGRAPHY_TOKENS
         assert "slide-caption" in VALID_TYPOGRAPHY_TOKENS
-        assert "executive" in VALID_THEME_NAMES
-        assert "professional" in VALID_THEME_NAMES
-        assert "dark-modern" in VALID_THEME_NAMES
+        assert "ocean-depths" in VALID_THEME_NAMES
+        assert "tech-innovation" in VALID_THEME_NAMES
+        assert "tech-innovation" in VALID_THEME_NAMES
 
     def test_spacing_instruction_keys_set(self):
         assert "padding" in SPACING_INSTRUCTION_KEYS

@@ -15,6 +15,10 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 
+# Install custom fonts from canvas-design skill
+COPY fonts/ /usr/share/fonts/custom/
+RUN fc-cache -f -v
+
 COPY . .
 
 EXPOSE 3001

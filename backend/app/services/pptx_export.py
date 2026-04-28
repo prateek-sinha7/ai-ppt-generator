@@ -44,99 +44,203 @@ logger = structlog.get_logger(__name__)
 class ThemeColors:
     """Color schemes for each presentation theme."""
 
-    EXECUTIVE = {
-        "primary": RGBColor(0, 47, 108),        # Navy blue
-        "secondary": RGBColor(0, 119, 200),     # Light blue
-        "accent": RGBColor(255, 184, 28),       # Gold
-        "accent2": RGBColor(0, 166, 81),        # Green
-        "text": RGBColor(51, 51, 51),           # Dark gray
-        "text_light": RGBColor(102, 102, 102),  # Medium gray
-        "background": RGBColor(255, 255, 255),  # White
-        "surface": RGBColor(245, 247, 250),     # Light blue-gray surface
-        "divider": RGBColor(220, 228, 240),     # Subtle divider
-        "kpi_bg": RGBColor(0, 47, 108),         # KPI box background
-        "kpi_text": RGBColor(255, 255, 255),    # KPI box text
-        "header_bar": RGBColor(0, 47, 108),     # Slide header accent bar
+    OCEAN_DEPTHS = {
+        "primary": RGBColor(26, 35, 50),
+        "secondary": RGBColor(45, 139, 139),
+        "accent": RGBColor(168, 218, 220),
+        "accent2": RGBColor(91, 163, 163),
+        "text": RGBColor(26, 35, 50),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(241, 250, 238),
+        "surface": RGBColor(245, 248, 246),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(26, 35, 50),
+        "kpi_text": RGBColor(255, 255, 255),
+        "header_bar": RGBColor(26, 35, 50),
         "chart_colors": [
-            RGBColor(0, 119, 200),
-            RGBColor(255, 184, 28),
-            RGBColor(0, 166, 81),
-            RGBColor(237, 28, 36),
-            RGBColor(141, 198, 63),
-            RGBColor(102, 45, 145),
-            RGBColor(0, 180, 204),
+            RGBColor(26, 35, 50), RGBColor(45, 139, 139), RGBColor(168, 218, 220),
+            RGBColor(91, 163, 163), RGBColor(61, 107, 107), RGBColor(130, 180, 180),
+            RGBColor(107, 114, 128),
         ],
     }
 
-    PROFESSIONAL = {
-        "primary": RGBColor(0, 0, 0),           # Black
-        "secondary": RGBColor(134, 188, 37),    # Lime green
-        "accent": RGBColor(0, 180, 204),        # Teal
-        "accent2": RGBColor(255, 140, 0),       # Orange
-        "text": RGBColor(51, 51, 51),           # Dark gray
-        "text_light": RGBColor(102, 102, 102),  # Medium gray
-        "background": RGBColor(255, 255, 255),  # White
-        "surface": RGBColor(248, 250, 245),     # Light green-tinted surface
-        "divider": RGBColor(210, 230, 180),     # Subtle green divider
-        "kpi_bg": RGBColor(0, 0, 0),            # KPI box background
-        "kpi_text": RGBColor(134, 188, 37),     # KPI box text (lime)
-        "header_bar": RGBColor(134, 188, 37),   # Slide header accent bar
+    SUNSET_BOULEVARD = {
+        "primary": RGBColor(231, 111, 81),
+        "secondary": RGBColor(244, 162, 97),
+        "accent": RGBColor(233, 196, 106),
+        "accent2": RGBColor(42, 157, 143),
+        "text": RGBColor(38, 70, 83),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(255, 255, 255),
+        "surface": RGBColor(253, 248, 243),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(38, 70, 83),
+        "kpi_text": RGBColor(231, 111, 81),
+        "header_bar": RGBColor(38, 70, 83),
         "chart_colors": [
-            RGBColor(134, 188, 37),
-            RGBColor(0, 180, 204),
-            RGBColor(255, 140, 0),
-            RGBColor(102, 45, 145),
-            RGBColor(0, 150, 57),
-            RGBColor(0, 0, 0),
-            RGBColor(237, 28, 36),
+            RGBColor(231, 111, 81), RGBColor(244, 162, 97), RGBColor(233, 196, 106),
+            RGBColor(38, 70, 83), RGBColor(42, 157, 143), RGBColor(180, 90, 65),
+            RGBColor(107, 114, 128),
         ],
     }
 
-    DARK_MODERN = {
-        "primary": RGBColor(30, 30, 46),        # Deep navy-black
-        "secondary": RGBColor(99, 102, 241),    # Indigo
-        "accent": RGBColor(236, 72, 153),       # Pink
-        "accent2": RGBColor(34, 197, 94),       # Emerald
-        "text": RGBColor(226, 232, 240),        # Slate-100
-        "text_light": RGBColor(148, 163, 184),  # Slate-400
-        "background": RGBColor(15, 23, 42),     # Slate-900
-        "surface": RGBColor(30, 41, 59),        # Slate-800
-        "divider": RGBColor(51, 65, 85),        # Slate-700
-        "kpi_bg": RGBColor(99, 102, 241),       # KPI box background (indigo)
-        "kpi_text": RGBColor(255, 255, 255),    # KPI box text
-        "header_bar": RGBColor(99, 102, 241),   # Slide header accent bar
+    FOREST_CANOPY = {
+        "primary": RGBColor(45, 74, 43),
+        "secondary": RGBColor(125, 132, 113),
+        "accent": RGBColor(164, 172, 134),
+        "accent2": RGBColor(90, 122, 88),
+        "text": RGBColor(45, 74, 43),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(250, 249, 246),
+        "surface": RGBColor(245, 245, 242),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(45, 74, 43),
+        "kpi_text": RGBColor(255, 255, 255),
+        "header_bar": RGBColor(45, 74, 43),
         "chart_colors": [
-            RGBColor(99, 102, 241),
-            RGBColor(236, 72, 153),
-            RGBColor(34, 197, 94),
-            RGBColor(251, 191, 36),
-            RGBColor(56, 189, 248),
-            RGBColor(249, 115, 22),
-            RGBColor(167, 139, 250),
+            RGBColor(45, 74, 43), RGBColor(125, 132, 113), RGBColor(164, 172, 134),
+            RGBColor(90, 122, 88), RGBColor(139, 155, 120), RGBColor(70, 100, 68),
+            RGBColor(107, 114, 128),
         ],
     }
 
-    CORPORATE = {
-        "primary": RGBColor(0, 40, 85),         # Deep navy blue
-        "secondary": RGBColor(0, 82, 136),      # Medium navy
-        "accent": RGBColor(0, 120, 172),         # Steel blue (single accent)
-        "accent2": RGBColor(70, 130, 180),       # Muted steel blue
-        "text": RGBColor(33, 33, 33),            # Near-black
-        "text_light": RGBColor(100, 100, 100),   # Medium gray
-        "background": RGBColor(255, 255, 255),   # White
-        "surface": RGBColor(245, 247, 250),      # Very light blue-gray
-        "divider": RGBColor(210, 218, 226),      # Light gray divider
-        "kpi_bg": RGBColor(0, 40, 85),           # Navy KPI box
-        "kpi_text": RGBColor(255, 255, 255),     # White KPI text
-        "header_bar": RGBColor(0, 40, 85),       # Navy header accent bar
+    MODERN_MINIMALIST = {
+        "primary": RGBColor(54, 69, 79),
+        "secondary": RGBColor(112, 128, 144),
+        "accent": RGBColor(211, 211, 211),
+        "accent2": RGBColor(80, 90, 100),
+        "text": RGBColor(54, 69, 79),
+        "text_light": RGBColor(112, 128, 144),
+        "background": RGBColor(255, 255, 255),
+        "surface": RGBColor(245, 245, 245),
+        "divider": RGBColor(211, 211, 211),
+        "kpi_bg": RGBColor(54, 69, 79),
+        "kpi_text": RGBColor(255, 255, 255),
+        "header_bar": RGBColor(54, 69, 79),
         "chart_colors": [
-            RGBColor(0, 40, 85),                 # Deep navy
-            RGBColor(0, 82, 136),                # Medium navy
-            RGBColor(0, 120, 172),               # Steel blue
-            RGBColor(70, 130, 180),              # Muted steel
-            RGBColor(140, 170, 200),             # Light steel
-            RGBColor(180, 200, 220),             # Pale blue-gray
-            RGBColor(100, 100, 100),             # Neutral gray
+            RGBColor(54, 69, 79), RGBColor(112, 128, 144), RGBColor(160, 160, 160),
+            RGBColor(80, 90, 100), RGBColor(136, 150, 160), RGBColor(40, 50, 60),
+            RGBColor(180, 180, 180),
+        ],
+    }
+
+    GOLDEN_HOUR = {
+        "primary": RGBColor(244, 169, 0),
+        "secondary": RGBColor(193, 102, 107),
+        "accent": RGBColor(212, 184, 150),
+        "accent2": RGBColor(139, 105, 20),
+        "text": RGBColor(74, 64, 58),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(255, 255, 255),
+        "surface": RGBColor(250, 246, 240),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(74, 64, 58),
+        "kpi_text": RGBColor(244, 169, 0),
+        "header_bar": RGBColor(74, 64, 58),
+        "chart_colors": [
+            RGBColor(244, 169, 0), RGBColor(193, 102, 107), RGBColor(212, 184, 150),
+            RGBColor(139, 105, 20), RGBColor(160, 82, 78), RGBColor(180, 140, 60),
+            RGBColor(107, 114, 128),
+        ],
+    }
+
+    ARCTIC_FROST = {
+        "primary": RGBColor(74, 111, 165),
+        "secondary": RGBColor(192, 192, 192),
+        "accent": RGBColor(212, 228, 247),
+        "accent2": RGBColor(85, 128, 168),
+        "text": RGBColor(44, 62, 80),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(250, 250, 250),
+        "surface": RGBColor(245, 247, 250),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(74, 111, 165),
+        "kpi_text": RGBColor(255, 255, 255),
+        "header_bar": RGBColor(74, 111, 165),
+        "chart_colors": [
+            RGBColor(74, 111, 165), RGBColor(122, 156, 198), RGBColor(168, 196, 224),
+            RGBColor(85, 128, 168), RGBColor(61, 90, 128), RGBColor(100, 140, 180),
+            RGBColor(107, 114, 128),
+        ],
+    }
+
+    DESERT_ROSE = {
+        "primary": RGBColor(212, 165, 165),
+        "secondary": RGBColor(184, 125, 109),
+        "accent": RGBColor(232, 213, 196),
+        "accent2": RGBColor(155, 107, 107),
+        "text": RGBColor(93, 46, 70),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(255, 255, 255),
+        "surface": RGBColor(250, 245, 240),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(93, 46, 70),
+        "kpi_text": RGBColor(212, 165, 165),
+        "header_bar": RGBColor(93, 46, 70),
+        "chart_colors": [
+            RGBColor(212, 165, 165), RGBColor(184, 125, 109), RGBColor(232, 213, 196),
+            RGBColor(93, 46, 70), RGBColor(155, 107, 107), RGBColor(170, 140, 140),
+            RGBColor(107, 114, 128),
+        ],
+    }
+
+    TECH_INNOVATION = {
+        "primary": RGBColor(0, 102, 255),
+        "secondary": RGBColor(0, 255, 255),
+        "accent": RGBColor(0, 204, 204),
+        "accent2": RGBColor(51, 136, 255),
+        "text": RGBColor(255, 255, 255),
+        "text_light": RGBColor(156, 163, 175),
+        "background": RGBColor(30, 30, 30),
+        "surface": RGBColor(42, 42, 42),
+        "divider": RGBColor(55, 65, 81),
+        "kpi_bg": RGBColor(0, 102, 255),
+        "kpi_text": RGBColor(255, 255, 255),
+        "header_bar": RGBColor(0, 102, 255),
+        "chart_colors": [
+            RGBColor(0, 102, 255), RGBColor(0, 255, 255), RGBColor(0, 204, 204),
+            RGBColor(51, 136, 255), RGBColor(102, 221, 255), RGBColor(0, 170, 170),
+            RGBColor(156, 163, 175),
+        ],
+    }
+
+    BOTANICAL_GARDEN = {
+        "primary": RGBColor(74, 124, 89),
+        "secondary": RGBColor(249, 166, 32),
+        "accent": RGBColor(183, 71, 42),
+        "accent2": RGBColor(107, 155, 120),
+        "text": RGBColor(58, 58, 58),
+        "text_light": RGBColor(107, 114, 128),
+        "background": RGBColor(245, 243, 237),
+        "surface": RGBColor(240, 237, 230),
+        "divider": RGBColor(209, 213, 219),
+        "kpi_bg": RGBColor(74, 124, 89),
+        "kpi_text": RGBColor(255, 255, 255),
+        "header_bar": RGBColor(74, 124, 89),
+        "chart_colors": [
+            RGBColor(74, 124, 89), RGBColor(249, 166, 32), RGBColor(183, 71, 42),
+            RGBColor(107, 155, 120), RGBColor(212, 136, 26), RGBColor(90, 150, 105),
+            RGBColor(107, 114, 128),
+        ],
+    }
+
+    MIDNIGHT_GALAXY = {
+        "primary": RGBColor(74, 78, 143),
+        "secondary": RGBColor(164, 144, 194),
+        "accent": RGBColor(230, 230, 250),
+        "accent2": RGBColor(107, 111, 175),
+        "text": RGBColor(230, 230, 250),
+        "text_light": RGBColor(156, 163, 175),
+        "background": RGBColor(43, 30, 62),
+        "surface": RGBColor(54, 42, 78),
+        "divider": RGBColor(74, 64, 96),
+        "kpi_bg": RGBColor(74, 78, 143),
+        "kpi_text": RGBColor(230, 230, 250),
+        "header_bar": RGBColor(74, 78, 143),
+        "chart_colors": [
+            RGBColor(74, 78, 143), RGBColor(164, 144, 194), RGBColor(230, 230, 250),
+            RGBColor(107, 111, 175), RGBColor(196, 184, 216), RGBColor(90, 94, 160),
+            RGBColor(156, 163, 175),
         ],
     }
 
@@ -144,13 +248,28 @@ class ThemeColors:
     def get_theme(cls, theme_name: str) -> Dict[str, Any]:
         """Get theme colors by name."""
         theme_map = {
-            "executive": cls.EXECUTIVE,
-            "professional": cls.PROFESSIONAL,
-            "dark_modern": cls.DARK_MODERN,
-            "dark-modern": cls.DARK_MODERN,
-            "corporate": cls.CORPORATE,
+            "ocean-depths": cls.OCEAN_DEPTHS,
+            "ocean_depths": cls.OCEAN_DEPTHS,
+            "sunset-boulevard": cls.SUNSET_BOULEVARD,
+            "sunset_boulevard": cls.SUNSET_BOULEVARD,
+            "forest-canopy": cls.FOREST_CANOPY,
+            "forest_canopy": cls.FOREST_CANOPY,
+            "modern-minimalist": cls.MODERN_MINIMALIST,
+            "modern_minimalist": cls.MODERN_MINIMALIST,
+            "golden-hour": cls.GOLDEN_HOUR,
+            "golden_hour": cls.GOLDEN_HOUR,
+            "arctic-frost": cls.ARCTIC_FROST,
+            "arctic_frost": cls.ARCTIC_FROST,
+            "desert-rose": cls.DESERT_ROSE,
+            "desert_rose": cls.DESERT_ROSE,
+            "tech-innovation": cls.TECH_INNOVATION,
+            "tech_innovation": cls.TECH_INNOVATION,
+            "botanical-garden": cls.BOTANICAL_GARDEN,
+            "botanical_garden": cls.BOTANICAL_GARDEN,
+            "midnight-galaxy": cls.MIDNIGHT_GALAXY,
+            "midnight_galaxy": cls.MIDNIGHT_GALAXY,
         }
-        return theme_map.get(theme_name.lower(), cls.CORPORATE)
+        return theme_map.get(theme_name.lower(), cls.OCEAN_DEPTHS)
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +370,7 @@ class PPTXBuilder:
     ACCENT_BAR_HEIGHT = Inches(0.07)
     ACCENT_BAR_TOP = Inches(1.25)
 
-    def __init__(self, theme: str = "corporate"):
+    def __init__(self, theme: str = "ocean-depths"):
         """
         Initialize PPTX builder.
 
@@ -1214,7 +1333,7 @@ class PPTXBuilder:
 # Main Export Function
 # ---------------------------------------------------------------------------
 
-def build_pptx(slides_data: List[Dict[str, Any]], theme: str = "corporate") -> bytes:
+def build_pptx(slides_data: List[Dict[str, Any]], theme: str = "ocean-depths") -> bytes:
     """
     Build PPTX file from Slide_JSON data.
     

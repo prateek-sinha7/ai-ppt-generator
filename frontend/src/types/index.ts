@@ -17,7 +17,7 @@ export type ChartType = 'bar' | 'line' | 'pie'
 
 export type TransitionType = 'fade' | 'slide' | 'none'
 
-export type Theme = 'executive' | 'professional' | 'dark-modern' | 'corporate'
+export type Theme = 'ocean-depths' | 'sunset-boulevard' | 'forest-canopy' | 'modern-minimalist' | 'golden-hour' | 'arctic-frost' | 'desert-rose' | 'tech-innovation' | 'botanical-garden' | 'midnight-galaxy'
 
 export interface ChartDataPoint {
   label: string
@@ -49,6 +49,7 @@ export interface SlideData {
   highlight_text?: string
   transition?: TransitionType
   layout_instructions?: Record<string, string>
+  layout_variant?: string
   speaker_notes?: string
 }
 
@@ -80,6 +81,7 @@ export interface GenerationStatus {
     template_id: string
   }
   design_spec?: DesignSpec
+  generation_mode?: 'code' | 'hybrid' | 'json'
   error?: string
 }
 

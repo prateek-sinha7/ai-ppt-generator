@@ -109,7 +109,7 @@ class TestEndToEndPipeline:
             mock_ic_result.target_audience = "executives"
             mock_ic_result.selected_template_id = None
             mock_ic_result.selected_template_name = "Healthcare Executive Briefing"
-            mock_ic_result.theme = "corporate"
+            mock_ic_result.theme = "ocean-depths"
             mock_ic_result.compliance_context = ["HIPAA", "FDA"]
             mock_ic_result.classification_method = "semantic"
             mock_ic.classify = AsyncMock(return_value=mock_ic_result)
@@ -406,7 +406,7 @@ class TestEndToEndPipeline:
             mock_ic_result.target_audience = "technical"
             mock_ic_result.selected_template_id = None
             mock_ic_result.selected_template_name = "Technology Briefing"
-            mock_ic_result.theme = "dark_modern"
+            mock_ic_result.theme = "tech-innovation"
             mock_ic_result.compliance_context = []
             mock_ic_result.classification_method = "keyword"
             mock_ic.classify = AsyncMock(return_value=mock_ic_result)
@@ -564,7 +564,7 @@ class TestEndToEndPipeline:
             mock_ic_result.target_audience = "executives"
             mock_ic_result.selected_template_id = None
             mock_ic_result.selected_template_name = "Retail Briefing"
-            mock_ic_result.theme = "professional"
+            mock_ic_result.theme = "modern-minimalist"
             mock_ic_result.compliance_context = []
             mock_ic_result.classification_method = "semantic"
             mock_ic.classify = AsyncMock(return_value=mock_ic_result)

@@ -141,19 +141,19 @@ class TestThemeSelection:
     """Test theme selection"""
     
     def test_executive_theme(self):
-        """Test executive theme for executives"""
+        """Test modern-minimalist theme for executives"""
         theme = industry_classifier._select_theme("healthcare", "executives")
-        assert theme == "executive"
+        assert theme == "modern-minimalist"
     
     def test_technical_theme(self):
         """Test Dark Modern theme for technical audience"""
         theme = industry_classifier._select_theme("technology", "technical")
-        assert theme == "dark_modern"
+        assert theme == "tech-innovation"
     
     def test_default_theme(self):
-        """Test professional theme for finance analysts"""
+        """Test ocean-depths theme for finance analysts"""
         theme = industry_classifier._select_theme("finance", "analysts")
-        assert theme == "professional"
+        assert theme == "ocean-depths"
 
 
 @pytest.mark.asyncio
@@ -171,7 +171,7 @@ class TestFullClassification:
         assert context.confidence > 0.0
         assert context.target_audience in ["executives", "analysts", "technical", "general"]
         assert context.selected_template_name is not None
-        assert context.theme in ["executive", "professional", "dark_modern", "corporate"]
+        assert context.theme in ["ocean-depths", "sunset-boulevard", "forest-canopy", "modern-minimalist", "golden-hour", "arctic-frost", "desert-rose", "tech-innovation", "botanical-garden", "midnight-galaxy"]
         assert context.classification_method in ["keyword", "semantic", "llm"]
     
     async def test_finance_classification(self):
@@ -195,7 +195,7 @@ class TestFullClassification:
         assert context.industry == "technology"
         assert context.confidence > 0.0
         assert context.target_audience == "technical"  # Should detect technical audience
-        assert context.theme == "dark_modern"  # Technical audience gets dark theme
+        assert context.theme == "tech-innovation"  # Technical audience gets dark theme
 
 
 class TestIndustrySeedTerms:

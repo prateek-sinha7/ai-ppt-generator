@@ -348,14 +348,14 @@ class TestExportPptxTask:
         from app.worker.tasks import _build_pptx
 
         slides = [_make_slide(slide_number=i + 1) for i in range(3)]
-        result = _build_pptx(slides, theme="corporate")
+        result = _build_pptx(slides, theme="ocean-depths")
         assert isinstance(result, bytes)
         assert len(result) > 0
 
     def test_build_pptx_handles_empty_slides(self):
         from app.worker.tasks import _build_pptx
 
-        result = _build_pptx([], theme="professional")
+        result = _build_pptx([], theme="modern-minimalist")
         assert isinstance(result, bytes)
 
     def test_build_pptx_handles_slides_without_bullets(self):
@@ -363,7 +363,7 @@ class TestExportPptxTask:
 
         slide = _make_slide()
         slide["content"] = {}  # no bullets
-        result = _build_pptx([slide], theme="dark_modern")
+        result = _build_pptx([slide], theme="tech-innovation")
         assert isinstance(result, bytes)
         assert len(result) > 0
 

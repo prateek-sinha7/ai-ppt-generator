@@ -155,6 +155,7 @@ def generate_presentation_task(
     tenant_id: str,
     idempotency_key: Optional[str] = None,
     user_selected_theme: Optional[str] = None,
+    generation_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Wrap the full multi-agent pipeline in a Celery task.
@@ -194,6 +195,7 @@ def generate_presentation_task(
                 resume_from_checkpoint=True,
                 job_id=job_id,
                 user_selected_theme=user_selected_theme,
+                generation_mode=generation_mode,
             )
         )
 
@@ -488,7 +490,7 @@ def export_pptx_task(
             )
 
         slides_data = presentation.slides or []
-        theme = presentation.selected_theme or "dark_modern"
+        theme = presentation.selected_theme or "ocean-depths"
         design_spec = presentation.design_spec or {}
 
         # Build PPTX via Node.js pptx-service (Claude-quality rendering)
@@ -515,22 +517,26 @@ def export_pptx_task(
         raise self.retry(exc=exc) from exc
 
 
-def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, Any]] = None) -> bytes:
+def _build_pptx(
+    slides_data: Any,
+    theme: str,
+    design_spec: Optional[Dict[str, Any]] = None,
+    generation_mode: Optional[str] = None,
+) -> bytes:
     """
     Build a PPTX file by calling the pptx-service Node.js microservice.
 
-    The pptx-service implements the full Claude-style design system using pptxgenjs:
-    - Topic-specific color palettes from design_spec (DesignAgent output)
-    - Visual motif carried across all slides
-    - Varied layouts with icons, charts, callouts
-    - Modern chart styling with dark themes
-    - Numbered bullet cards, KPI badges, comparison columns
-    - No fallback - always uses pptx-service for consistent Claude-style output
+    Routes to ``/build-artisan`` when *generation_mode* is ``"artisan"``
+    (or when *slides_data* contains an ``artisan_code`` key),
+    ``/build-code`` when *generation_mode* is ``"studio"`` or ``"craft"``,
+    and to the existing ``/build`` endpoint otherwise.
 
     Args:
-        slides_data: List of slide dictionaries from Slide_JSON
+        slides_data: List of slide dictionaries from Slide_JSON, or a dict
+            with ``artisan_code`` for artisan mode
         theme: Theme name (corporate, executive, professional, dark_modern)
         design_spec: DesignAgent output dict with palette, fonts, motif
+        generation_mode: "artisan", "studio", "craft", or "express" (default)
 
     Returns:
         PPTX file as bytes
@@ -541,6 +547,11 @@ def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, An
     import httpx
     from app.core.config import settings
 
+    # Auto-detect artisan mode from slides_data shape when generation_mode
+    # is not explicitly provided (e.g. export_pptx_task path).
+    if generation_mode is None and isinstance(slides_data, dict) and "artisan_code" in slides_data:
+        generation_mode = "artisan"
+
     # slides_data may be a list directly or a dict with a "slides" key
     if isinstance(slides_data, dict):
         slides_list = slides_data.get("slides", [])
@@ -550,24 +561,49 @@ def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, An
         slides_list = []
 
     pptx_service_url = getattr(settings, "PPTX_SERVICE_URL", "http://pptx-service:3001")
+
+    # Route to /build-artisan for artisan mode, /build-code for studio and craft modes (Req 8.3, 8.4)
+    if generation_mode == "artisan":
+        build_endpoint = f"{pptx_service_url}/build-artisan"
+    elif generation_mode in ("studio", "craft"):
+        build_endpoint = f"{pptx_service_url}/build-code"
+    else:
+        build_endpoint = f"{pptx_service_url}/build"
+    
+    # Build the request payload — artisan mode sends artisan_code instead of slides
+    if generation_mode == "artisan":
+        # slides_data may be a dict with "artisan_code" key (stored by _finalize)
+        artisan_code = None
+        if isinstance(slides_data, dict):
+            artisan_code = slides_data.get("artisan_code")
+        if not artisan_code:
+            raise Exception("Artisan mode requires artisan_code in slides_data")
+        payload = {
+            "artisan_code": artisan_code,
+            "design_spec": design_spec or {},
+            "theme": theme,
+        }
+    else:
+        payload = {
+            "slides": slides_list,
+            "design_spec": design_spec or {},
+            "theme": theme,
+        }
     
     logger.info(
         "attempting_pptx_service_build",
-        url=pptx_service_url,
+        url=build_endpoint,
         slide_count=len(slides_list),
         theme=theme,
         has_design_spec=bool(design_spec),
+        generation_mode=generation_mode,
     )
 
     try:
         response = httpx.post(
-            f"{pptx_service_url}/build",
-            json={
-                "slides": slides_list,
-                "design_spec": design_spec or {},
-                "theme": theme,
-            },
-            timeout=60.0,
+            build_endpoint,
+            json=payload,
+            timeout=120.0 if generation_mode == "artisan" else 60.0,
         )
         response.raise_for_status()
         logger.info(
@@ -575,6 +611,7 @@ def _build_pptx(slides_data: Any, theme: str, design_spec: Optional[Dict[str, An
             slide_count=len(slides_list),
             size_bytes=len(response.content),
             theme=theme,
+            generation_mode=generation_mode,
         )
         return response.content
 
@@ -639,3 +676,230 @@ async def _upload_to_s3(object_key: str, data: bytes) -> str:
         ExpiresIn=3600,  # 1 hour TTL
     )
     return signed_url
+
+
+async def _upload_export_to_s3(object_key: str, data: bytes, content_type: str) -> str:
+    """Upload export bytes to MinIO/S3 with a specific content type and return a 1-hour signed URL."""
+    import boto3
+    from botocore.client import Config
+    from app.core.config import settings
+
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=f"{'https' if settings.MINIO_USE_SSL else 'http'}://{settings.MINIO_ENDPOINT}",
+        aws_access_key_id=settings.MINIO_ACCESS_KEY,
+        aws_secret_access_key=settings.MINIO_SECRET_KEY,
+        config=Config(signature_version="s3v4"),
+        region_name="us-east-1",
+    )
+
+    try:
+        s3_client.head_bucket(Bucket=settings.MINIO_BUCKET)
+    except Exception:
+        s3_client.create_bucket(Bucket=settings.MINIO_BUCKET)
+
+    s3_client.put_object(
+        Bucket=settings.MINIO_BUCKET,
+        Key=object_key,
+        Body=data,
+        ContentType=content_type,
+    )
+
+    signed_url = s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": settings.MINIO_BUCKET, "Key": object_key},
+        ExpiresIn=3600,
+    )
+    return signed_url
+
+
+# ---------------------------------------------------------------------------
+# export_pdf_task
+# ---------------------------------------------------------------------------
+
+@celery_app.task(
+    name="export_pdf",
+    queue="export",
+    bind=True,
+    base=BaseTask,
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+    time_limit=120,
+    soft_time_limit=90,
+)
+def export_pdf_task(
+    self: Task,
+    presentation_id: str,
+    idempotency_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a PDF from a completed presentation and upload to S3/MinIO."""
+    job_id = self.request.id
+
+    if idempotency_key:
+        redis_client = _get_redis_client()
+        existing_job_id = _check_and_set_idempotency(redis_client, idempotency_key, job_id)
+        if existing_job_id and existing_job_id != job_id:
+            logger.info("duplicate_pdf_export_ignored", idempotency_key=idempotency_key, existing_job_id=existing_job_id)
+            raise Ignore()
+
+    try:
+        presentation = _run_async(_get_presentation(presentation_id))
+        if presentation is None:
+            raise ValueError(f"Presentation {presentation_id} not found")
+        if presentation.status != PresentationStatus.completed:
+            raise ValueError(f"Cannot export presentation {presentation_id} with status {presentation.status}")
+
+        slides_data = presentation.slides or []
+        theme = presentation.selected_theme or "ocean-depths"
+        design_spec = presentation.design_spec or {}
+
+        from app.services.pdf_export import generate_pdf
+        pdf_bytes = generate_pdf(slides_data, theme, design_spec)
+
+        object_key = f"exports/{presentation_id}/{job_id}.pdf"
+        signed_url = _run_async(_upload_export_to_s3(object_key, pdf_bytes, "application/pdf"))
+
+        return {
+            "job_id": job_id,
+            "presentation_id": presentation_id,
+            "status": "completed",
+            "download_url": signed_url,
+            "file_size": len(pdf_bytes),
+        }
+
+    except Exception as exc:
+        logger.exception("export_pdf_task_failed", presentation_id=presentation_id, exc=str(exc))
+        raise self.retry(exc=exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# export_docx_task
+# ---------------------------------------------------------------------------
+
+@celery_app.task(
+    name="export_docx",
+    queue="export",
+    bind=True,
+    base=BaseTask,
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+    time_limit=120,
+    soft_time_limit=90,
+)
+def export_docx_task(
+    self: Task,
+    presentation_id: str,
+    idempotency_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a DOCX from a completed presentation and upload to S3/MinIO."""
+    job_id = self.request.id
+
+    if idempotency_key:
+        redis_client = _get_redis_client()
+        existing_job_id = _check_and_set_idempotency(redis_client, idempotency_key, job_id)
+        if existing_job_id and existing_job_id != job_id:
+            logger.info("duplicate_docx_export_ignored", idempotency_key=idempotency_key, existing_job_id=existing_job_id)
+            raise Ignore()
+
+    try:
+        presentation = _run_async(_get_presentation(presentation_id))
+        if presentation is None:
+            raise ValueError(f"Presentation {presentation_id} not found")
+        if presentation.status != PresentationStatus.completed:
+            raise ValueError(f"Cannot export presentation {presentation_id} with status {presentation.status}")
+
+        slides_data = presentation.slides or []
+        theme = presentation.selected_theme or "ocean-depths"
+        design_spec = presentation.design_spec or {}
+
+        from app.services.docx_export import generate_docx
+        docx_bytes = generate_docx(slides_data, theme, design_spec)
+
+        object_key = f"exports/{presentation_id}/{job_id}.docx"
+        signed_url = _run_async(
+            _upload_export_to_s3(
+                object_key,
+                docx_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        )
+
+        return {
+            "job_id": job_id,
+            "presentation_id": presentation_id,
+            "status": "completed",
+            "download_url": signed_url,
+            "file_size": len(docx_bytes),
+        }
+
+    except Exception as exc:
+        logger.exception("export_docx_task_failed", presentation_id=presentation_id, exc=str(exc))
+        raise self.retry(exc=exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# export_xlsx_task
+# ---------------------------------------------------------------------------
+
+@celery_app.task(
+    name="export_xlsx",
+    queue="export",
+    bind=True,
+    base=BaseTask,
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+    time_limit=120,
+    soft_time_limit=90,
+)
+def export_xlsx_task(
+    self: Task,
+    presentation_id: str,
+    idempotency_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate an XLSX from a completed presentation and upload to S3/MinIO."""
+    job_id = self.request.id
+
+    if idempotency_key:
+        redis_client = _get_redis_client()
+        existing_job_id = _check_and_set_idempotency(redis_client, idempotency_key, job_id)
+        if existing_job_id and existing_job_id != job_id:
+            logger.info("duplicate_xlsx_export_ignored", idempotency_key=idempotency_key, existing_job_id=existing_job_id)
+            raise Ignore()
+
+    try:
+        presentation = _run_async(_get_presentation(presentation_id))
+        if presentation is None:
+            raise ValueError(f"Presentation {presentation_id} not found")
+        if presentation.status != PresentationStatus.completed:
+            raise ValueError(f"Cannot export presentation {presentation_id} with status {presentation.status}")
+
+        slides_data = presentation.slides or []
+        theme = presentation.selected_theme or "ocean-depths"
+        design_spec = presentation.design_spec or {}
+
+        from app.services.xlsx_export import generate_xlsx
+        xlsx_bytes = generate_xlsx(slides_data, theme, design_spec)
+
+        object_key = f"exports/{presentation_id}/{job_id}.xlsx"
+        signed_url = _run_async(
+            _upload_export_to_s3(
+                object_key,
+                xlsx_bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        )
+
+        return {
+            "job_id": job_id,
+            "presentation_id": presentation_id,
+            "status": "completed",
+            "download_url": signed_url,
+            "file_size": len(xlsx_bytes),
+        }
+
+    except Exception as exc:
+        logger.exception("export_xlsx_task_failed", presentation_id=presentation_id, exc=str(exc))
+        raise self.retry(exc=exc) from exc
