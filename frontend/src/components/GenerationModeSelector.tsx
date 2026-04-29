@@ -1,4 +1,6 @@
-export type GenerationMode = 'code' | 'hybrid' | 'json'
+import { useState } from 'react'
+
+export type GenerationMode = 'artisan' | 'studio' | 'craft' | 'express'
 
 interface GenerationModeSelectorProps {
   selectedMode: GenerationMode
@@ -10,28 +12,69 @@ interface ModeOption {
   label: string
   description: string
   icon: string
+  hint: string
 }
 
 const MODE_OPTIONS: ModeOption[] = [
   {
-    key: 'code',
-    label: 'Code',
-    description: 'Highest Visual Quality',
+    key: 'artisan',
+    label: 'Artisan',
+    description: 'Bespoke AI-designed presentation',
+    icon: '🎨',
+    hint: 'AI writes the entire presentation as one script with full creative freedom — custom colors, cross-slide consistency, and unique layouts. Best visual quality but slower.',
+  },
+  {
+    key: 'studio',
+    label: 'Studio',
+    description: 'Professional-grade slides',
     icon: '✦',
+    hint: 'AI writes code for each slide individually with theme colors applied. Great visual quality with per-slide error recovery.',
   },
   {
-    key: 'hybrid',
-    label: 'Hybrid',
-    description: 'Balanced',
+    key: 'craft',
+    label: 'Craft',
+    description: 'Balanced quality & speed',
     icon: '⚡',
+    hint: 'Simple slides use fast templates, complex slides get AI-generated code. Good balance of speed and quality.',
   },
   {
-    key: 'json',
-    label: 'JSON',
-    description: 'Classic / Fastest',
+    key: 'express',
+    label: 'Express',
+    description: 'Fastest generation',
     icon: '⏱',
+    hint: 'Uses pre-built templates for all slides. Fastest and most reliable, but limited layout variety.',
   },
 ]
+
+function InfoTooltip({ hint }: { hint: string }) {
+  const [visible, setVisible] = useState(false)
+
+  return (
+    <span className="relative inline-flex items-center ml-1">
+      <button
+        type="button"
+        aria-label="More info"
+        className="text-xs leading-none focus:outline-none"
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        onClick={(e) => { e.stopPropagation(); setVisible((v) => !v) }}
+      >
+        ⓘ
+      </button>
+      {visible && (
+        <span
+          role="tooltip"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-lg bg-slate-800 text-white text-xs px-3 py-2 shadow-lg z-10 pointer-events-none"
+        >
+          {hint}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+        </span>
+      )}
+    </span>
+  )
+}
 
 export default function GenerationModeSelector({
   selectedMode,
@@ -42,7 +85,7 @@ export default function GenerationModeSelector({
       <label className="block text-sm font-medium text-gray-700 mb-2">
         Generation Mode
       </label>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {MODE_OPTIONS.map((opt) => {
           const isSelected = selectedMode === opt.key
           return (
@@ -59,7 +102,10 @@ export default function GenerationModeSelector({
               <span className="block text-lg mb-1" aria-hidden="true">
                 {opt.icon}
               </span>
-              <span className="block text-sm font-semibold">{opt.label}</span>
+              <span className="flex items-center justify-center text-sm font-semibold">
+                {opt.label}
+                <InfoTooltip hint={opt.hint} />
+              </span>
               <span
                 className={`block text-xs mt-0.5 ${
                   isSelected ? 'text-slate-300' : 'text-gray-500'

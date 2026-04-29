@@ -81,7 +81,7 @@ export interface GenerationStatus {
     template_id: string
   }
   design_spec?: DesignSpec
-  generation_mode?: 'code' | 'hybrid' | 'json'
+  generation_mode?: 'artisan' | 'studio' | 'craft' | 'express'
   error?: string
 }
 

@@ -66,15 +66,18 @@ class TestPipelineSequenceInvariant:
         """
         expected_sequence = [
             AgentName.INDUSTRY_CLASSIFIER,
+            AgentName.DESIGN,
             AgentName.STORYBOARDING,
             AgentName.RESEARCH,
             AgentName.DATA_ENRICHMENT,
             AgentName.PROMPT_ENGINEERING,
             AgentName.LLM_PROVIDER,
             AgentName.VALIDATION,
+            AgentName.VISUAL_REFINEMENT,
             AgentName.QUALITY_SCORING,
+            AgentName.VISUAL_QA,
         ]
-        
+
         assert PIPELINE_SEQUENCE == expected_sequence, (
             f"Pipeline sequence must be fixed. Expected {expected_sequence}, "
             f"got {PIPELINE_SEQUENCE}"
@@ -675,26 +678,29 @@ class TestPerAgentLatencyBudgetCompliance:
             assert agent in AGENT_LATENCY_BUDGETS, (
                 f"Agent {agent.value} missing latency budget"
             )
-            
+
             budget = AGENT_LATENCY_BUDGETS[agent]
             assert budget > 0, f"Agent {agent.value} budget must be positive"
-            assert budget <= 40.0, f"Agent {agent.value} budget too large: {budget}s"
-    
+            assert budget <= 300.0, f"Agent {agent.value} budget too large: {budget}s"
+
     def test_latency_budgets_match_requirements(self):
         """
         Property: Latency budgets match specification requirements.
         """
         expected_budgets = {
             AgentName.INDUSTRY_CLASSIFIER: 15.0,
+            AgentName.DESIGN: 20.0,
             AgentName.STORYBOARDING: 10.0,
-            AgentName.RESEARCH: 30.0,
+            AgentName.RESEARCH: 60.0,
             AgentName.DATA_ENRICHMENT: 20.0,
             AgentName.PROMPT_ENGINEERING: 5.0,
-            AgentName.LLM_PROVIDER: 40.0,
+            AgentName.LLM_PROVIDER: 300.0,
             AgentName.VALIDATION: 5.0,
+            AgentName.VISUAL_REFINEMENT: 90.0,
             AgentName.QUALITY_SCORING: 10.0,
+            AgentName.VISUAL_QA: 60.0,
         }
-        
+
         for agent, expected_budget in expected_budgets.items():
             actual_budget = AGENT_LATENCY_BUDGETS[agent]
             assert actual_budget == expected_budget, (

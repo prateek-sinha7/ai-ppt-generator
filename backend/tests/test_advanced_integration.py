@@ -247,7 +247,7 @@ class TestVisualRegressionSnapshots:
         assert slide_data["visual_hint"] == "centered"
         assert slide_data["theme"] == "ocean-depths"
 
-    def test_content_slide_snapshot_Modern Minimalist_theme(self):
+    def test_content_slide_snapshot_modern_minimalist_theme(self):
         """
         GIVEN a content slide with Modern Minimalist theme
         WHEN rendered

@@ -184,7 +184,6 @@ export default function ThemeSelector({ selectedTheme, onSelect }: ThemeSelector
                 }`}
                 style={isSelected ? {
                   borderColor: t.primary,
-                  ringColor: t.primary,
                   boxShadow: `0 4px 14px ${t.primary}30`,
                   outline: `2px solid ${t.primary}`,
                   outlineOffset: '-2px',

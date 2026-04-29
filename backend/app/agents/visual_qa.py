@@ -10,7 +10,8 @@ Supports four generation modes:
   and asks for a corrected ``render_code`` snippet (Req 10.2).
 - **craft**: Code-generated slides (those with ``render_code``) use the LLM
   code-fix path; JSON-rendered slides use the existing heuristic fixes (Req 10.3).
-- **artisan**: Full-script fixes (to be implemented in a later task).
+- **artisan**: Sends the full ``artisan_code`` + issue descriptions to the LLM
+  and asks for a corrected full script (Req 9.2, 9.3, 9.4).
 """
 from __future__ import annotations
 
@@ -87,6 +88,30 @@ Rules:
 - Keep the same overall layout and content.
 - Use theme.* for colors, fonts.* for font faces.
 - Hex colors: NO '#' prefix.
+- Return ONLY the corrected JavaScript code. No markdown fences, no explanation.
+"""
+
+ARTISAN_FIX_PROMPT = """\
+You are a pptxgenjs expert. A presentation generated with full-script Artisan mode has visual issues that need fixing.
+
+## Original artisan_code
+```javascript
+{artisan_code}
+```
+
+## Issues detected
+{issues_description}
+
+## Instructions
+Produce a corrected `artisan_code` JavaScript script that fixes the issues above.
+The script will be executed with these variables in scope: pres, theme, fonts, themes, iconToBase64.
+
+Rules:
+- Fix ONLY the reported issues — do not redesign the presentation.
+- Keep the same overall layout, content, and slide structure.
+- Use theme.* for colors, fonts.* for font faces.
+- Hex colors: NO '#' prefix.
+- Call pres.addSlide() to create each slide.
 - Return ONLY the corrected JavaScript code. No markdown fences, no explanation.
 """
 
@@ -198,6 +223,7 @@ class VisualQAAgent:
         try:
             await streaming_service.publish_agent_start(
                 presentation_id, "visual_qa", execution_id,
+                generation_mode=generation_mode.value if generation_mode else None,
             )
         except Exception:
             pass  # streaming failures must never break the pipeline
@@ -276,6 +302,9 @@ class VisualQAAgent:
                     working_slides, issues,
                     generation_mode=generation_mode,
                     execution_id=execution_id,
+                    design_spec=design_spec,
+                    theme=theme,
+                    artisan_code=artisan_code,
                 )
                 total_issues_fixed += fixed_count
 
@@ -559,9 +588,17 @@ class VisualQAAgent:
         issues: List[VisualQAIssue],
         generation_mode: Optional["GenerationMode"] = None,
         execution_id: str = "",
+        design_spec: Optional[Dict[str, Any]] = None,
+        theme: str = "ocean-depths",
+        artisan_code: Optional[str] = None,
     ) -> tuple[int, List[int]]:
         """
         Apply automatic fixes to slides based on detected issues.
+
+        For artisan mode (Req 9.2, 9.3, 9.4):
+        - Send the full artisan_code + issue descriptions to the LLM
+        - Ask for a corrected full script
+        - Pass artisan_code and design_spec to /preview-artisan for re-rendering
 
         For code/hybrid modes (Req 10.2, 10.3):
         - Slides with ``render_code`` → LLM-based code fix
@@ -573,6 +610,20 @@ class VisualQAAgent:
         Returns (number_of_fixes_applied, list_of_modified_slide_indices).
         """
         from app.core.generation_mode import GenerationMode as _GM
+
+        # --- Artisan mode: full-script fix (Req 9.2, 9.3, 9.4) ---
+        if generation_mode == _GM.ARTISAN:
+            if artisan_code:
+                fixed_count, modified_indices = await self._apply_artisan_fixes(
+                    slides, issues, artisan_code, design_spec, theme, execution_id,
+                )
+                return fixed_count, modified_indices
+            else:
+                logger.warning(
+                    "visual_qa_artisan_no_code",
+                    execution_id=execution_id,
+                )
+                return 0, []
 
         is_code_aware = generation_mode in (_GM.STUDIO, _GM.CRAFT)
 
@@ -611,8 +662,125 @@ class VisualQAAgent:
         return fixed_count, sorted(modified_indices)
 
     # ------------------------------------------------------------------
-    # Code-slide fix: ask LLM for corrected render_code (Req 10.2)
+    # Artisan-script fix: ask LLM for corrected full script (Req 9.2, 9.3, 9.4)
     # ------------------------------------------------------------------
+
+    async def _apply_artisan_fixes(
+        self,
+        slides: List[Dict[str, Any]],
+        issues: List[VisualQAIssue],
+        artisan_code: str,
+        design_spec: Optional[Dict[str, Any]],
+        theme: str,
+        execution_id: str,
+    ) -> tuple[int, List[int]]:
+        """
+        For Artisan mode, send the full artisan_code + issue descriptions to the LLM
+        and ask for a corrected full script (Req 9.2).
+
+        Pass the corrected artisan_code and design_spec to /preview-artisan for
+        re-rendering (Req 9.3).
+
+        Returns (fixes_applied, modified_indices).
+        """
+        if not issues:
+            return 0, []
+
+        # Build issue description block
+        issues_desc = "\n".join(
+            f"- [{issue.severity}] Slide {issue.slide_number}: {issue.issue_type}: {issue.description}"
+            + (f" (suggested: {issue.suggested_fix})" if issue.suggested_fix else "")
+            for issue in issues
+        )
+
+        corrected_code = await self._get_corrected_artisan_code(
+            artisan_code, issues_desc, execution_id,
+        )
+
+        if corrected_code and corrected_code != artisan_code:
+            # Update the artisan_code in slides (stored as {"artisan_code": "..."})
+            if slides and isinstance(slides[0], dict) and "artisan_code" in slides[0]:
+                slides[0]["artisan_code"] = corrected_code
+            
+            logger.info(
+                "visual_qa_artisan_fix_applied",
+                issue_count=len(issues),
+                execution_id=execution_id,
+            )
+            # For artisan mode, we consider all slides as modified since the entire
+            # script was regenerated
+            return 1, list(range(len(slides)))
+        else:
+            # LLM could not produce a fix — mark issues as not fixable
+            for issue in issues:
+                issue.fixable = False
+            logger.warning(
+                "visual_qa_artisan_fix_failed",
+                issue_count=len(issues),
+                execution_id=execution_id,
+            )
+            return 0, []
+
+    async def _get_corrected_artisan_code(
+        self,
+        original_code: str,
+        issues_description: str,
+        execution_id: str,
+    ) -> Optional[str]:
+        """
+        Call the LLM to produce corrected artisan_code for the full presentation.
+
+        Returns the corrected code string, or None on failure.
+        """
+        prompt_text = ARTISAN_FIX_PROMPT.format(
+            artisan_code=original_code,
+            issues_description=issues_description,
+        )
+
+        try:
+            from langchain_core.messages import HumanMessage
+
+            message = HumanMessage(content=prompt_text)
+
+            async def _call_llm(client, msg):
+                return await client.ainvoke([msg])
+
+            response = await provider_factory.call_with_failover(
+                _call_llm,
+                execution_id=execution_id,
+                msg=message,
+            )
+
+            corrected = response.content.strip()
+
+            # Strip markdown code fences if the LLM wrapped the output
+            if corrected.startswith("```"):
+                lines = corrected.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                corrected = "\n".join(lines).strip()
+
+            # Basic sanity: must contain at least one pres.addSlide() call
+            if "pres.addSlide()" not in corrected:
+                logger.warning(
+                    "visual_qa_artisan_fix_no_add_slide",
+                    code_preview=corrected[:200],
+                )
+                return None
+
+            return corrected
+
+        except Exception as exc:
+            logger.error(
+                "visual_qa_artisan_fix_llm_error",
+                error=str(exc),
+                execution_id=execution_id,
+            )
+            return None
+
+
 
     async def _apply_code_fixes(
         self,

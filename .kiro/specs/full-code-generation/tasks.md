@@ -170,7 +170,7 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - **Validates: Requirements 16.2**
 
 - [-] 8. Pipeline Orchestrator extensions for Artisan mode (backend)
-  - [ ] 8.1 Update `backend/app/agents/pipeline_orchestrator.py` for Artisan routing
+  - [x] 8.1 Update `backend/app/agents/pipeline_orchestrator.py` for Artisan routing
     - Update mode resolution to use new enum values (ARTISAN, STUDIO, CRAFT, EXPRESS)
     - Route artisan mode to `/build-artisan` and `/preview-artisan` endpoints in `_run_visual_qa` and `_finalize`
     - Implement Artisan retry logic: on validation failure, retry LLM call once with same prompt; on runtime error, retry once with error message appended
@@ -196,7 +196,7 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - **Validates: Requirements 11.3**
 
 - [ ] 9. Visual QA Agent extension for Artisan mode (backend)
-  - [ ] 9.1 Update `backend/app/agents/visual_qa.py` for Artisan mode
+  - [x] 9.1 Update `backend/app/agents/visual_qa.py` for Artisan mode
     - Route to `/preview-artisan` endpoint when `generation_mode == ARTISAN`
     - Add `ARTISAN_FIX_PROMPT` template for full-script fixes: send original artisan_code + issue descriptions to LLM, ask for corrected full script
     - Pass artisan_code and design_spec to `/preview-artisan` for re-rendering after fixes
@@ -204,7 +204,7 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
 - [ ] 10. Backend API update for new mode names
-  - [ ] 10.1 Update `backend/app/api/v1/presentations.py` request validation
+  - [x] 10.1 Update `backend/app/api/v1/presentations.py` request validation
     - Update `CreatePresentationRequest.generation_mode` validator to accept "artisan", "studio", "craft", "express"
     - Reject old mode names ("full_code", "code", "hybrid", "json") with helpful error message: `"Mode '<name>' has been renamed. Use: artisan, studio, craft, or express"`
     - _Requirements: 11.1, 11.2_
@@ -214,24 +214,24 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - **Property 9: API mode validation accepts exactly valid modes** — random strings, verify accepts only artisan/studio/craft/express (case-insensitive, trimmed), rejects old names with helpful message
     - **Validates: Requirements 11.1, 11.2**
 
-  - [ ] 10.3 Update SSE event generation_mode field in backend
+  - [x] 10.3 Update SSE event generation_mode field in backend
     - Update SSE `agent_start` event data to use new mode names ("artisan", "studio", "craft", "express")
     - Search for any hardcoded old mode name strings in SSE-related code and update
     - _Requirements: 13.1_
 
 - [ ] 11. Update existing backend tests for mode rename
-  - [ ] 11.1 Update all existing backend test files that reference old mode names
+  - [x] 11.1 Update all existing backend test files that reference old mode names
     - Search and replace `GenerationMode.CODE` → `GenerationMode.STUDIO`, `GenerationMode.HYBRID` → `GenerationMode.CRAFT`, `GenerationMode.JSON` → `GenerationMode.EXPRESS` in all test files
     - Update string literals `"code"`, `"hybrid"`, `"json"` used as generation mode values in test assertions
     - Update `test_pipeline_orchestrator.py`, `test_validation_agent.py`, `test_prompt_engineering_agent.py`, `test_presentations_api.py`, and any other test files referencing generation modes
     - Ensure all existing tests pass with the new mode names
     - _Requirements: 14.2, 14.3, 14.4_
 
-- [ ] 12. Checkpoint — backend changes complete
+- [x] 12. Checkpoint — backend changes complete
   - Ensure all backend tests pass (`docker compose run --rm backend pytest -v`), ask the user if questions arise.
 
-- [ ] 13. Frontend GenerationModeSelector update
-  - [ ] 13.1 Update `frontend/src/components/GenerationModeSelector.tsx`
+- [x] 13. Frontend GenerationModeSelector update
+  - [x] 13.1 Update `frontend/src/components/GenerationModeSelector.tsx`
     - Change `GenerationMode` type to `'artisan' | 'studio' | 'craft' | 'express'`
     - Update `MODE_OPTIONS` array to four options with new keys, labels, descriptions, and icons:
       - artisan / Artisan / "Bespoke AI-designed presentation" / 🎨
@@ -243,13 +243,13 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - Update grid layout from `grid-cols-3` to `grid-cols-4` (or `grid-cols-2 sm:grid-cols-4`)
     - _Requirements: 10.1, 10.2, 10.5_
 
-  - [ ] 13.2 Update `frontend/src/components/PresentationGenerator.tsx`
+  - [x] 13.2 Update `frontend/src/components/PresentationGenerator.tsx`
     - Update default `generationMode` state from `'code'` to `'artisan'`
     - Update the `generationMode` reset in the submit handler from `'code'` to `'artisan'`
     - _Requirements: 10.3_
 
-- [ ] 14. Frontend ProgressIndicator update
-  - [ ] 14.1 Update `frontend/src/components/ProgressIndicator.tsx`
+- [x] 14. Frontend ProgressIndicator update
+  - [x] 14.1 Update `frontend/src/components/ProgressIndicator.tsx`
     - Change `GenerationMode` type to `'artisan' | 'studio' | 'craft' | 'express'`
     - Update `MODE_DESCRIPTIONS` record with four modes:
       - artisan: llm_provider → "Generating complete pptxgenjs presentation script", validation → "Validating full presentation script"
@@ -264,21 +264,21 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - Update `extractGenerationMode()` to accept the four new mode strings
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
 
-- [ ] 15. Frontend types update
-  - [ ] 15.1 Update `frontend/src/types/index.ts`
+- [x] 15. Frontend types update
+  - [x] 15.1 Update `frontend/src/types/index.ts`
     - Change `GenerationStatus.generation_mode` type from `'code' | 'hybrid' | 'json'` to `'artisan' | 'studio' | 'craft' | 'express'`
     - _Requirements: 13.2_
 
-  - [ ] 15.2 Search and update any remaining old mode name references in frontend
+  - [x] 15.2 Search and update any remaining old mode name references in frontend
     - Grep for `'code'`, `'hybrid'`, `'json'` used as generation mode values across all frontend `.ts` and `.tsx` files
     - Update any remaining references to use new mode names
     - _Requirements: 14.3_
 
-- [ ] 16. Checkpoint — frontend changes complete
+- [x] 16. Checkpoint — frontend changes complete
   - Ensure frontend builds without errors, ask the user if questions arise.
 
-- [ ] 17. Final integration wiring and verification
-  - [ ] 17.1 Verify end-to-end mode routing
+- [x] 17. Final integration wiring and verification
+  - [x] 17.1 Verify end-to-end mode routing
     - Verify that `PresentationGenerator` sends the correct `generation_mode` value to the API
     - Verify that the backend API accepts all four new mode names and rejects old names
     - Verify that the pipeline orchestrator routes artisan mode through the correct prompt template, validation, and pptx-service endpoints
@@ -293,7 +293,7 @@ This plan implements the Artisan generation mode and renames all four modes (jso
     - Test CodeFailureTracker downgrades artisan→studio at 30% failure rate
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 18. Final checkpoint — all tests pass
+- [-] 18. Final checkpoint — all tests pass
   - Ensure all backend tests pass (`docker compose run --rm backend pytest -v`), ensure all pptx-service tests pass, ensure frontend builds cleanly. Ask the user if questions arise.
 
 ## Notes

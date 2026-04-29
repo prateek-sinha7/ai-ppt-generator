@@ -1,7 +1,7 @@
 import { CheckCircle, Loader2, XCircle, Clock, Zap } from 'lucide-react'
 import { SSEEvent } from '../hooks/useSSEStream'
 
-type GenerationMode = 'code' | 'hybrid' | 'json'
+type GenerationMode = 'artisan' | 'studio' | 'craft' | 'express'
 
 interface ProgressIndicatorProps {
   events: SSEEvent[]
@@ -84,22 +84,27 @@ const AGENT_PIPELINE: { name: string; displayName: string; description: string }
 
 // Mode-specific description overrides for Content Generation and Validation steps
 const MODE_DESCRIPTIONS: Record<GenerationMode, Record<string, string>> = {
-  code: {
+  artisan: {
+    llm_provider: 'Generating complete pptxgenjs presentation script',
+    validation: 'Validating full presentation script',
+  },
+  studio: {
     llm_provider: 'Generating pptxgenjs slide code with AI',
     validation: 'Validating generated code structure',
   },
-  hybrid: {
+  craft: {
     llm_provider: 'Generating slide content and code snippets',
     validation: 'Validating JSON structure and code snippets',
   },
-  json: {},
+  express: {},
 }
 
 // Badge labels and colors per generation mode
 const MODE_BADGE: Record<GenerationMode, { label: string; className: string }> = {
-  code: { label: 'Code Mode', className: 'bg-purple-500/20 text-purple-200 border-purple-400/30' },
-  hybrid: { label: 'Hybrid Mode', className: 'bg-amber-500/20 text-amber-200 border-amber-400/30' },
-  json: { label: 'JSON Mode', className: 'bg-blue-500/20 text-blue-200 border-blue-400/30' },
+  artisan: { label: 'Artisan Mode', className: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30' },
+  studio: { label: 'Studio Mode', className: 'bg-purple-500/20 text-purple-200 border-purple-400/30' },
+  craft: { label: 'Craft Mode', className: 'bg-amber-500/20 text-amber-200 border-amber-400/30' },
+  express: { label: 'Express Mode', className: 'bg-blue-500/20 text-blue-200 border-blue-400/30' },
 }
 
 // Synthetic step appended after all agents complete
@@ -117,7 +122,7 @@ function extractGenerationMode(events: SSEEvent[]): GenerationMode | null {
   for (const e of events) {
     if (e.type === 'agent_start' && e.data.generation_mode) {
       const mode = e.data.generation_mode as string
-      if (mode === 'code' || mode === 'hybrid' || mode === 'json') {
+      if (mode === 'artisan' || mode === 'studio' || mode === 'craft' || mode === 'express') {
         return mode
       }
     }

@@ -117,23 +117,22 @@ class TestCreatePresentation:
         assert req.topic == "AI in Healthcare"
 
     def test_topic_is_only_accepted_field(self):
-        """Request schema must only accept topic — no provider, theme, etc."""
+        """Request schema must only accept topic, theme, generation_mode — no provider, audience, etc."""
         from app.api.v1.presentations import CreatePresentationRequest
-        import inspect
 
         fields = CreatePresentationRequest.model_fields
         assert "topic" in fields
-        # No provider, theme, audience, or template fields
-        for forbidden in ("provider", "theme", "audience", "template_id", "industry"):
+        # No provider, audience, or template fields
+        for forbidden in ("provider", "audience", "template_id", "industry"):
             assert forbidden not in fields, f"Field '{forbidden}' must not be in request"
 
-    def test_topic_max_length_500(self):
-        """Topic must be rejected if longer than 500 characters."""
+    def test_topic_max_length_5000(self):
+        """Topic must be rejected if longer than 5000 characters."""
         from app.api.v1.presentations import CreatePresentationRequest
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            CreatePresentationRequest(topic="x" * 501)
+            CreatePresentationRequest(topic="x" * 5001)
 
     def test_topic_blank_rejected(self):
         """Blank topic must be rejected."""
@@ -224,9 +223,9 @@ class TestPresentationStatus:
         """Progress is driven by current_agent when processing."""
         from app.api.v1.presentations import _compute_progress
 
-        assert _compute_progress("processing", "research") == 35
+        assert _compute_progress("processing", "research") == 36
         assert _compute_progress("processing", "quality_scoring") == 95
-        assert _compute_progress("processing", "industry_classifier") == 10
+        assert _compute_progress("processing", "industry_classifier") == 8
 
     def test_progress_computation_unknown_agent(self):
         """Unknown agent falls back to status-based progress."""

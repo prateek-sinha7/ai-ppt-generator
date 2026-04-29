@@ -467,11 +467,11 @@ class TestGetExportPreview:
         from app.api.v1.export_templates_admin import _build_preview_html
 
         html_executive = _build_preview_html([], "ocean-depths")
-        html_Modern Minimalist = _build_preview_html([], "modern-minimalist")
+        html_modern_minimalist = _build_preview_html([], "modern-minimalist")
         html_dark = _build_preview_html([], "tech-innovation")
 
         assert "#003366" in html_executive
-        assert "#86BC25" in html_Modern Minimalist
+        assert "#86BC25" in html_modern_minimalist
         assert "#1A1A2E" in html_dark
 
     def test_build_fallback_pdf_returns_valid_pdf_bytes(self):

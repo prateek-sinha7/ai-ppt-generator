@@ -13,7 +13,7 @@ const MAX_TOPIC_LENGTH = 5000
 export default function PresentationGenerator({ onGenerationStart }: PresentationGeneratorProps) {
   const [topic, setTopic] = useState('')
   const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null)
-  const [generationMode, setGenerationMode] = useState<GenerationMode>('code')
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('artisan')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,7 +44,7 @@ export default function PresentationGenerator({ onGenerationStart }: Presentatio
       onGenerationStart(presentation_id, job_id)
       setTopic('')
       setSelectedTheme(null)
-      setGenerationMode('code')
+      setGenerationMode('artisan')
     } catch (err: any) {
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please try again later.')
